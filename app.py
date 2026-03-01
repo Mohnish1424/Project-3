@@ -137,7 +137,6 @@ st.subheader("Risk Distribution")
 
 risk_counts = filtered['Risk_Category'].value_counts()
 fig, ax = plt.subplots(figsize=(4,2.2))
-st.pyplot(fig)
 ax.bar(risk_counts.index, risk_counts.values)
 st.pyplot(fig)
 
@@ -178,8 +177,6 @@ pred = model.predict(X_test)
 st.write("Model Accuracy:", round(accuracy_score(y_test, pred),3))
 
 fig, ax = plt.subplots(figsize=(3,2.6))
-st.pyplot(fig)
-ax.matshow(confusion_matrix(y_test, pred))
 st.pyplot(fig)
 
 # ===== FEATURE IMPORTANCE =====
@@ -248,5 +245,6 @@ st.write("""
 • AI predictions should support human decisions, not replace them.
 
 """)
+
 
 
