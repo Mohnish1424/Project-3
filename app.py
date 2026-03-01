@@ -177,6 +177,7 @@ pred = model.predict(X_test)
 st.write("Model Accuracy:", round(accuracy_score(y_test, pred),3))
 
 fig, ax = plt.subplots(figsize=(3,2.6))
+ax.matshow(confusion_matrix(y_test, pred))
 st.pyplot(fig)
 
 # ===== FEATURE IMPORTANCE =====
@@ -245,6 +246,7 @@ st.write("""
 • AI predictions should support human decisions, not replace them.
 
 """)
+
 
 
 
