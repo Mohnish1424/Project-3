@@ -24,7 +24,29 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("B2B Client Risk & Churn Prediction Dashboard")
+# ===== HEADER WITH LOGO & GROUP INFO =====
+col1, col2 = st.columns([1,6])
+
+with col1:
+    st.image("logo.png", width=90)
+
+with col2:
+    st.title("B2B Client Risk & Churn Prediction Dashboard")
+    st.caption("Group-2 • Rhinos • BBA Semester 4 • Woxsen University")
+
+# ===== TEAM MEMBERS =====
+if st.button("👥 View Team Members"):
+    st.info("""
+**Group-2 — Rhinos**
+
+Mohnish Singh Patwal  
+Shreyas Kandi  
+Akash Krishna  
+Nihal Talampally  
+
+Woxsen University  
+BBA Semester 4
+""")
 
 # ===== Fancy Header =====
 st.markdown("""
@@ -222,4 +244,5 @@ st.write("""
 • Labeling clients as high-risk can affect relationships unfairly.  
 • Client data must be protected and handled securely.  
 • AI predictions should support human decisions, not replace them.
+
 """)
