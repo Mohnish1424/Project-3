@@ -136,7 +136,16 @@ st.markdown("---")
 st.subheader("Risk Distribution")
 
 risk_counts = filtered['Risk_Category'].value_counts()
-fig, ax = plt.subplots(figsize=(5,3))
+fig, ax = plt.subplots(figsize=(4,2.2))
+
+ax.bar(risk_counts.index, risk_counts.values, color="#3B82F6")
+
+ax.spines[:].set_visible(False)
+ax.set_facecolor("#111827")
+fig.patch.set_facecolor("#111827")
+ax.tick_params(colors='white')
+
+st.pyplot(fig)
 ax.bar(risk_counts.index, risk_counts.values)
 st.pyplot(fig)
 
@@ -176,7 +185,22 @@ pred = model.predict(X_test)
 
 st.write("Model Accuracy:", round(accuracy_score(y_test, pred),3))
 
-fig, ax = plt.subplots(figsize=(4,3))
+fig, ax = plt.subplots(figsize=(3,2.6))
+
+cm = confusion_matrix(y_test, pred)
+cax = ax.imshow(cm, cmap="Blues")
+
+for i in range(len(cm)):
+    for j in range(len(cm[0])):
+        ax.text(j, i, cm[i, j], ha='center', va='center')
+
+ax.set_title("Confusion Matrix", fontsize=10)
+ax.set_xlabel("Predicted")
+ax.set_ylabel("Actual")
+
+fig.colorbar(cax, fraction=0.046, pad=0.04)
+
+st.pyplot(fig)
 ax.matshow(confusion_matrix(y_test, pred))
 st.pyplot(fig)
 
@@ -246,3 +270,4 @@ st.write("""
 • AI predictions should support human decisions, not replace them.
 
 """)
+
