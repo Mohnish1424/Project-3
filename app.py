@@ -10,31 +10,27 @@ st.set_page_config(page_title="Client Risk Dashboard", layout="wide")
 # ===== Background Styling =====
 st.markdown("""
 <style>
-.stApp {
-    background-color: #0E1117;
-}
+.stApp { background-color: #0E1117; }
 .block-container {
     background-color: #111827;
     padding: 2rem;
     border-radius: 10px;
 }
-[data-testid="stSidebar"] {
-    background-color: #111827;
-}
+[data-testid="stSidebar"] { background-color: #111827; }
 </style>
 """, unsafe_allow_html=True)
 
-# ===== HEADER WITH LOGO & GROUP INFO =====
+# ===== HEADER =====
 col1, col2 = st.columns([1,6])
 
 with col1:
-    st.image("logo.png", width=90)
+    st.image("logo.png", width=80)
 
 with col2:
     st.title("B2B Client Risk & Churn Prediction Dashboard")
     st.caption("Group-2 • Rhinos • BBA Semester 4 • Woxsen University")
 
-# ===== TEAM MEMBERS =====
+# ===== TEAM BUTTON =====
 if st.button("👥 View Team Members"):
     st.info("""
 **Group-2 — Rhinos**
@@ -43,24 +39,7 @@ Mohnish Singh Patwal
 Shreyas Kandi  
 Akash Krishna  
 Nihal Talampally  
-
-Woxsen University  
-BBA Semester 4
 """)
-
-# ===== Fancy Header =====
-st.markdown("""
-<style>
-.big-title {
-    font-size:28px;
-    font-weight:700;
-    background: linear-gradient(90deg, #00C9FF, #92FE9D);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-</style>
-<div class="big-title">AI-Powered Client Risk Intelligence System</div>
-""", unsafe_allow_html=True)
 
 st.markdown("### 📊 Monitor risk, predict churn, and prioritize high-value customers")
 
@@ -69,7 +48,7 @@ data = pd.read_csv("B2B_Client_Churn_5000.csv")
 data.columns = data.columns.str.strip().str.replace(" ", "_")
 data['Renewal_Status'] = data['Renewal_Status'].map({'Yes':1,'No':0})
 
-# ===== RISK SCORE =====
+# ===== RISK SCORE LOGIC =====
 def calculate_risk(row):
     risk = 0
     if row['Payment_Delay_Days'] > 30:
@@ -102,7 +81,6 @@ industry = st.sidebar.multiselect("Industry", data['Industry'].unique())
 risk = st.sidebar.multiselect("Risk Category", data['Risk_Category'].unique())
 
 filtered = data.copy()
-
 if region:
     filtered = filtered[filtered['Region'].isin(region)]
 if industry:
@@ -110,52 +88,7 @@ if industry:
 if risk:
     filtered = filtered[filtered['Risk_Category'].isin(risk)]
 
-# ===== KPI METRICS =====
-st.markdown("---")
-st.subheader("Key Metrics")
-st.caption("⚠ High Risk clients require immediate retention attention.")
-
-total_clients = len(filtered)
-high_risk = (filtered['Risk_Category']=="High Risk").sum()
-churn_rate = round(filtered['Renewal_Status'].mean()*100,2)
-avg_revenue = round(filtered['Monthly_Revenue_USD'].mean(),2)
-
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("👥 Total Clients", total_clients)
-col2.metric("⚠ High Risk", high_risk)
-col3.metric("📉 Churn Rate %", churn_rate)
-col4.metric("💰 Avg Revenue", avg_revenue)
-
-# ===== CHURN GAUGE =====
-st.subheader("Overall Churn Risk")
-st.progress(churn_rate/100)
-st.write(f"Churn Risk Level: {churn_rate}%")
-
-# ===== RISK DISTRIBUTION (smaller) =====
-st.markdown("---")
-st.subheader("Risk Distribution")
-
-risk_counts = filtered['Risk_Category'].value_counts()
-fig, ax = plt.subplots(figsize=(4,2.2))
-ax.bar(risk_counts.index, risk_counts.values)
-st.pyplot(fig)
-
-# ===== SIDE-BY-SIDE ANALYTICS =====
-st.markdown("---")
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("Industry-wise Risk")
-    st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean(), height=250)
-
-with col2:
-    st.subheader("Revenue vs Risk")
-    st.scatter_chart(filtered, x='Monthly_Revenue_USD', y='Risk_Score', height=250)
-
 # ===== MACHINE LEARNING MODEL =====
-st.markdown("---")
-st.subheader("Churn Prediction Model")
-
 features = [
     'Monthly_Usage_Score',
     'Payment_Delay_Days',
@@ -174,10 +107,72 @@ model.fit(X_train, y_train)
 
 pred = model.predict(X_test)
 
-st.write("Model Accuracy:", round(accuracy_score(y_test, pred),3))
+model_accuracy = round(accuracy_score(y_test, pred),3)
+predicted_churn_rate = round(pred.mean()*100,2)
 
-fig, ax = plt.subplots(figsize=(3,2.6))
+# ===== KPI METRICS =====
+st.markdown("---")
+st.subheader("Key Metrics")
+
+total_clients = len(filtered)
+high_risk = (filtered['Risk_Category']=="High Risk").sum()
+avg_revenue = round(filtered['Monthly_Revenue_USD'].mean(),2)
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("👥 Total Clients", total_clients)
+col2.metric("⚠ High Risk Clients", high_risk)
+col3.metric("📉 Predicted Churn %", predicted_churn_rate)
+col4.metric("💰 Avg Revenue", avg_revenue)
+
+# ===== RISK LEGEND =====
+st.info("""
+**Risk Score Logic**
+- Payment delay > 30 days → +2 risk  
+- Usage score < 50 → +2 risk  
+- Contract < 12 months → +2 risk  
+- Support tickets > 5 → +2 risk  
+""")
+
+# ===== RISK DISTRIBUTION =====
+st.markdown("---")
+st.subheader("Risk Category Distribution")
+
+risk_counts = filtered['Risk_Category'].value_counts()
+fig, ax = plt.subplots(figsize=(3.8,2.2))
+ax.bar(risk_counts.index, risk_counts.values)
+ax.set_ylabel("Clients")
+st.pyplot(fig)
+
+# ===== SIDE ANALYTICS =====
+st.markdown("---")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.subheader("Industry-wise Risk")
+    st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean(), height=250)
+
+with col2:
+    st.subheader("Revenue vs Risk")
+    st.scatter_chart(filtered, x='Monthly_Revenue_USD', y='Risk_Score', height=250)
+
+# ===== CONTRACT LENGTH VS CHURN (ADDED) =====
+st.markdown("---")
+st.subheader("Contract Length vs Churn")
+
+st.line_chart(
+    data.groupby('Contract_Length_Months')['Renewal_Status'].mean(),
+    height=250
+)
+
+# ===== MODEL PERFORMANCE =====
+st.markdown("---")
+st.subheader("Churn Prediction Model")
+
+st.write("Model Accuracy:", model_accuracy)
+
+fig, ax = plt.subplots(figsize=(3,2.4))
 ax.matshow(confusion_matrix(y_test, pred))
+ax.set_title("Confusion Matrix")
 st.pyplot(fig)
 
 # ===== FEATURE IMPORTANCE =====
@@ -189,9 +184,13 @@ importance = pd.DataFrame({
 st.subheader("Feature Importance")
 st.bar_chart(importance.set_index('Feature'), height=250)
 
+st.caption("""
+Higher importance indicates stronger influence on churn prediction.
+Payment delays and low usage are typically strong predictors.
+""")
+
 # ===== EXTRA ANALYTICS =====
 st.markdown("---")
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -202,11 +201,15 @@ with col2:
     st.subheader("Payment Delay vs Churn")
     st.line_chart(data.groupby('Payment_Delay_Days')['Renewal_Status'].mean(), height=250)
 
+# ===== HIGH VALUE CLIENTS AT RISK =====
+st.markdown("---")
 st.subheader("High Revenue Clients at Risk")
+
 high_value_risk = filtered[
     (filtered['Risk_Category']=="High Risk") &
     (filtered['Monthly_Revenue_USD'] > filtered['Monthly_Revenue_USD'].median())
 ]
+
 st.dataframe(high_value_risk.head(10))
 
 # ===== TOP HIGH RISK CLIENTS =====
@@ -214,39 +217,25 @@ st.markdown("---")
 st.subheader("Top 20 High Risk Clients")
 
 top20 = filtered.sort_values(by='Risk_Score', ascending=False).head(20)
-
-def highlight_risk(row):
-    if row['Risk_Category'] == "High Risk":
-        return ['background-color:#ff4b4b;color:white'] * len(row)
-    elif row['Risk_Category'] == "Medium Risk":
-        return ['background-color:#ffa600'] * len(row)
-    else:
-        return ['background-color:#2ecc71'] * len(row)
-
-st.dataframe(top20.style.apply(highlight_risk, axis=1))
+st.dataframe(top20)
 
 # ===== RETENTION STRATEGY =====
 st.markdown("---")
 if st.button("Generate Retention Strategy"):
     st.write("### Recommended Actions")
-    st.write("• Offer discounts to clients with payment delays > 30 days")
-    st.write("• Assign dedicated account managers to high complaint clients")
+    st.write("• Offer discounts for clients with payment delays > 30 days")
+    st.write("• Assign account managers to high complaint clients")
     st.write("• Provide incentives for long-term contracts")
-    st.write("• Improve response time for support tickets")
+    st.write("• Improve support response time")
     st.write("• Provide onboarding/training for low usage clients")
 
 # ===== ETHICAL AI =====
 st.markdown("---")
-st.subheader("Ethical Implications of Predicting Client Churn")
+st.subheader("Ethical Implications")
 
 st.write("""
-• Predictive models may contain bias from historical data.  
-• Labeling clients as high-risk can affect relationships unfairly.  
-• Client data must be protected and handled securely.  
-• AI predictions should support human decisions, not replace them.
-
+• Models may inherit bias from historical data.  
+• Labeling clients as high-risk must be used responsibly.  
+• Protect sensitive client data.  
+• AI should assist decisions, not replace human judgment.
 """)
-
-
-
-
