@@ -125,13 +125,23 @@ col3.metric("📉 Predicted Churn %", predicted_churn_rate)
 col4.metric("💰 Avg Revenue", avg_revenue)
 
 # ===== RISK LEGEND =====
-st.info("""
-**Risk Score Logic**
-- Payment delay > 30 days → +2 risk  
-- Usage score < 50 → +2 risk  
-- Contract < 12 months → +2 risk  
-- Support tickets > 5 → +2 risk  
-""")
+st.markdown("""
+<div style="
+background-color:#1f3b57;
+padding:15px;
+border-radius:10px;
+color:#e6f2ff;
+font-size:15px;
+">
+<b>Risk Score Logic</b>
+<ul>
+<li>Payment delay > 30 days → +2 risk</li>
+<li>Usage score < 50 → +2 risk</li>
+<li>Contract < 12 months → +2 risk</li>
+<li>Support tickets > 5 → +2 risk</li>
+</ul>
+</div>
+""", unsafe_allow_html=True)
 
 # ===== RISK DISTRIBUTION =====
 st.markdown("---")
@@ -239,3 +249,4 @@ st.write("""
 • Protect sensitive client data.  
 • AI should assist decisions, not replace human judgment.
 """)
+
