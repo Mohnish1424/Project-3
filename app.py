@@ -15,6 +15,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+st.markdown("""
+<style>
+.block-container {
+    padding-top: 1rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+    max-width: 100%;
+}
+
+section.main > div {
+    max-width: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ══════════════════════════════════════════════════════════════
 #  COLOR PALETTE  —  Neon White · Bright Red · Neon Blue
 # ══════════════════════════════════════════════════════════════
