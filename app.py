@@ -27,10 +27,10 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@700;800&display=swap');
 
 :root {
-    --bg:       #04070D;
-    --s1:       #070D1A;
-    --s2:       #0A1224;
-    --s3:       #0D172E;
+    --bg:       #000000;
+    --s1:       #0A0A0A;
+    --s2:       #111111;
+    --s3:       #181818;
 
     --nblue:    #00BFFF;
     --nblue-lt: #33CCFF;
@@ -242,8 +242,8 @@ html, body, [class*="css"], .stApp {
 # ══════════════════════════════════════════════════════════════
 #  MATPLOTLIB THEME  — Neon White · Bright Red · Neon Blue
 # ══════════════════════════════════════════════════════════════
-BG_M   = '#070D1A'
-GRID_M = '#0D172E'
+BG_M   = '#0A0A0A'
+GRID_M = '#181818'
 
 plt.rcParams.update({
     'figure.facecolor': BG_M,  'axes.facecolor': BG_M,
