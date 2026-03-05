@@ -15,7 +15,7 @@ with col_logo:
 
 with col_title:
     st.title("B2B Client Risk & Churn Prediction Dashboard")
-    st.caption("Group-2 • Rhinos • BBA Semester 4 • Section A • Woxsen University")
+    st.caption("Group-2 • Rhinos • BBA Semester 4 • Woxsen University")
 
 # ===== TEAM MEMBERS =====
 if st.button("👥 View Team Members"):
@@ -237,4 +237,4 @@ st.write("""
 """)
 # ===== FOOTER =====
 st.markdown("---")
-st.caption("Developed by Group-2 • Rhinos • BBA Semester 4 • Section A • Woxsen University")
+st.caption("Developed by Group-2 • Rhinos • BBA Semester 4 • Woxsen University")
