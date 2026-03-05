@@ -10,11 +10,11 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 #  PAGE CONFIG
 # ══════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="B2B Client Risk Intelligence | Woxsen University",
+    page_title="B2B Client Risk Dashboard",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
-
+)
 # ══════════════════════════════════════════════════════════════
 #  COLOR PALETTE  —  Neon White · Bright Red · Neon Blue
 # ══════════════════════════════════════════════════════════════
