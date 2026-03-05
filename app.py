@@ -7,155 +7,126 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 
 st.set_page_config(page_title="Client Risk Dashboard", layout="wide")
 
-# ========= THEME =========
+st.title("B2B Client Risk & Churn Prediction Dashboard")
+
+# ===== Fancy Gradient Header =====
 st.markdown("""
 <style>
-.stApp {background-color: #0E1117;}
-.block-container {
-    background-color: #111827;
-    padding: 2rem;
-    border-radius: 12px;
+.big-title {
+    font-size:28px;
+    font-weight:700;
+    background: linear-gradient(90deg, #00C9FF, #92FE9D);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
-[data-testid="stSidebar"] {background-color: #111827;}
 </style>
+<div class="big-title">AI-Powered Client Risk Intelligence System</div>
 """, unsafe_allow_html=True)
 
-# ========= HEADER =========
-col1, col2 = st.columns([1,5])
-
-with col1:
-    st.image("logo.png", width=95)
-
-with col2:
-    st.title("B2B Client Risk & Churn Prediction Dashboard")
-    st.caption("Group-2 • Rhinos • BBA-Sem:4")
-
-st.caption("AI-powered risk intelligence & churn prediction")
-
-# ========= TEAM POPUP =========
-if st.button("👥 View Team Members"):
-    st.info("""
-**Group-2 — Rhinos**
-
-• Mohnish Singh Patwal  
-• Shreyas Kandi  
-• Akash Krishna  
-• Nihal Talampally  
-
-Woxsen University • BBA Semester 4
+st.markdown("""
+### 📊 Monitor risk, predict churn, and prioritize high-value customers
 """)
 
-# ========= LOAD DATA =========
+# ===== LOAD DATA =====
 data = pd.read_csv("B2B_Client_Churn_5000.csv")
+
+# clean column names
 data.columns = data.columns.str.strip().str.replace(" ", "_")
+
+# convert Renewal_Status early
 data['Renewal_Status'] = data['Renewal_Status'].map({'Yes':1,'No':0})
 
-# ========= SIDEBAR =========
-st.sidebar.subheader("Risk Settings")
-usage_threshold = st.sidebar.slider("Low Usage Threshold", 20, 80, 50)
-ticket_threshold = st.sidebar.slider("Support Ticket Risk Level", 1, 10, 5)
-
-st.sidebar.subheader("Filters")
-region = st.sidebar.multiselect("Region", data['Region'].unique())
-industry = st.sidebar.multiselect("Industry", data['Industry'].unique())
-
-# ========= PRESENTATION MODE =========
-st.sidebar.markdown("---")
-presentation_mode = st.sidebar.checkbox("📽 Presentation Mode")
-st.sidebar.info("Enable for clean screenshots")
-
-if presentation_mode:
-    st.markdown(
-        "<style>[data-testid='stSidebar'] {display:none;}</style>",
-        unsafe_allow_html=True
-    )
-
-# ========= RISK SCORING =========
+# ===== RISK SCORE =====
 def calculate_risk(row):
     risk = 0
     if row['Payment_Delay_Days'] > 30:
         risk += 2
-    if row['Monthly_Usage_Score'] < usage_threshold:
+    if row['Monthly_Usage_Score'] < 50:
         risk += 2
     if row['Contract_Length_Months'] < 12:
         risk += 2
-    if row['Support_Tickets_Last30Days'] > ticket_threshold:
+    if row['Support_Tickets_Last30Days'] > 5:
         risk += 2
     return risk
 
 data['Risk_Score'] = data.apply(calculate_risk, axis=1)
 
-def label(score):
-    if score <= 2: return "Low Risk"
-    elif score <= 5: return "Medium Risk"
-    else: return "High Risk"
+def risk_label(score):
+    if score <= 2:
+        return "Low Risk"
+    elif score <= 5:
+        return "Medium Risk"
+    else:
+        return "High Risk"
 
-data['Risk_Category'] = data['Risk_Score'].apply(label)
+data['Risk_Category'] = data['Risk_Score'].apply(risk_label)
+
+# ===== SIDEBAR FILTERS =====
+st.sidebar.header("Filters")
+
+region = st.sidebar.multiselect("Region", data['Region'].unique())
+industry = st.sidebar.multiselect("Industry", data['Industry'].unique())
+risk = st.sidebar.multiselect("Risk Category", data['Risk_Category'].unique())
 
 filtered = data.copy()
+
 if region:
     filtered = filtered[filtered['Region'].isin(region)]
 if industry:
     filtered = filtered[filtered['Industry'].isin(industry)]
+if risk:
+    filtered = filtered[filtered['Risk_Category'].isin(risk)]
 
-# ========= KPI =========
+# ===== KPI METRICS =====
 st.markdown("---")
-if not presentation_mode:
-    st.subheader("Key Metrics")
+st.subheader("Key Metrics")
+st.caption("⚠ High Risk clients require immediate retention attention.")
 
-total = len(filtered)
-high = (filtered['Risk_Category']=="High Risk").sum()
-churn = round(filtered['Renewal_Status'].mean()*100,2)
-avg_rev = round(filtered['Monthly_Revenue_USD'].mean(),2)
+total_clients = len(filtered)
+high_risk = (filtered['Risk_Category']=="High Risk").sum()
+churn_rate = round(filtered['Renewal_Status'].mean()*100,2)
+avg_revenue = round(filtered['Monthly_Revenue_USD'].mean(),2)
 
-c1,c2,c3,c4 = st.columns(4)
-c1.metric("Clients", total)
-c2.metric("High Risk", high)
-c3.metric("Churn %", churn)
-c4.metric("Avg Revenue", avg_rev)
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("👥 Total Clients", total_clients)
+col2.metric("⚠ High Risk", high_risk)
+col3.metric("📉 Churn Rate %", churn_rate)
+col4.metric("💰 Avg Revenue", avg_revenue)
 
-st.progress(churn/100)
+# ===== CHURN GAUGE =====
+st.subheader("Overall Churn Risk")
+st.progress(churn_rate/100)
+st.write(f"Churn Risk Level: {churn_rate}%")
 
-# ========= RISK DISTRIBUTION =========
+if churn_rate < 20:
+    st.success("🟢 Low churn risk")
+elif churn_rate < 40:
+    st.warning("🟠 Moderate churn risk")
+else:
+    st.error("🔴 High churn risk")
+
+# ===== RISK DISTRIBUTION =====
 st.markdown("---")
-if not presentation_mode:
-    st.subheader("Risk Distribution")
+st.subheader("Risk Distribution")
 
-counts = filtered['Risk_Category'].value_counts()
-
-fig, ax = plt.subplots(figsize=(4,2.5))  # smaller & balanced
-ax.bar(counts.index, counts.values, color="#3B82F6")
-ax.set_facecolor("#111827")
-fig.patch.set_facecolor("#111827")
-
-for i, v in enumerate(counts.values):
-    ax.text(i, v + 50, str(v), ha='center', color="white")
-
-ax.tick_params(colors='white')
-ax.spines[:].set_visible(False)
-
+risk_counts = filtered['Risk_Category'].value_counts()
+fig, ax = plt.subplots()
+ax.bar(risk_counts.index, risk_counts.values)
 st.pyplot(fig)
 
-# ========= ANALYTICS =========
+# ===== INDUSTRY RISK =====
 st.markdown("---")
-col1,col2 = st.columns(2)
+st.subheader("Industry-wise Risk")
+st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean())
 
-with col1:
-    if not presentation_mode:
-        st.subheader("Industry Risk")
-    st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean(), height=230)
-
-with col2:
-    if not presentation_mode:
-        st.subheader("Revenue vs Risk")
-    density = st.checkbox("Show Density")
-    plot_data = filtered.sample(1000) if density else filtered
-    st.scatter_chart(plot_data, x='Monthly_Revenue_USD', y='Risk_Score', height=260)
-
-# ========= MACHINE LEARNING =========
+# ===== REVENUE VS RISK =====
 st.markdown("---")
-if not presentation_mode:
-    st.subheader("Churn Prediction Model")
+st.subheader("Revenue vs Risk")
+st.scatter_chart(filtered, x='Monthly_Revenue_USD', y='Risk_Score')
+
+# ===== MACHINE LEARNING MODEL =====
+st.markdown("---")
+st.subheader("Churn Prediction Model")
 
 features = [
     'Monthly_Usage_Score',
@@ -168,52 +139,76 @@ features = [
 X = data[features]
 y = data['Renewal_Status']
 
-X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.3,random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X,y,test_size=0.3,random_state=42)
 
 model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train,y_train)
+model.fit(X_train, y_train)
+
 pred = model.predict(X_test)
 
-st.write("Accuracy:", round(accuracy_score(y_test,pred),3))
+st.write("Model Accuracy:", round(accuracy_score(y_test, pred),3))
 
-# ===== CONFUSION MATRIX =====
-fig, ax = plt.subplots(figsize=(3,3))
-cm = confusion_matrix(y_test,pred)
-cax = ax.imshow(cm, cmap="Blues")
-
-for i in range(len(cm)):
-    for j in range(len(cm[0])):
-        ax.text(j,i,cm[i,j], ha='center', va='center', color="black")
-
-ax.set_title("Confusion Matrix")
-fig.colorbar(cax)
+fig, ax = plt.subplots()
+ax.matshow(confusion_matrix(y_test, pred))
 st.pyplot(fig)
 
-# ========= FEATURE IMPORTANCE =========
-imp = pd.DataFrame({'Feature':features,'Importance':model.feature_importances_})
-if not presentation_mode:
-    st.subheader("Feature Importance")
-st.bar_chart(imp.set_index('Feature'), height=230)
+# ===== FEATURE IMPORTANCE =====
+importance = pd.DataFrame({
+    'Feature': features,
+    'Importance': model.feature_importances_
+})
 
-# ========= HIGH VALUE CLIENTS =========
+st.subheader("Feature Importance")
+st.bar_chart(importance.set_index('Feature'))
+
+# ===== EXTRA ANALYTICS =====
 st.markdown("---")
-if not presentation_mode:
-    st.subheader("High Revenue Clients at Risk")
+st.subheader("Churn Rate by Industry")
+st.bar_chart(data.groupby('Industry')['Renewal_Status'].mean())
 
-hv = filtered[(filtered['Risk_Category']=="High Risk") &
-              (filtered['Monthly_Revenue_USD'] > filtered['Monthly_Revenue_USD'].median())]
-st.dataframe(hv.head(10))
+st.subheader("Payment Delay vs Churn")
+st.line_chart(data.groupby('Payment_Delay_Days')['Renewal_Status'].mean())
 
-# ========= RETENTION STRATEGY =========
+st.subheader("High Revenue Clients at Risk")
+high_value_risk = filtered[
+    (filtered['Risk_Category']=="High Risk") &
+    (filtered['Monthly_Revenue_USD'] > filtered['Monthly_Revenue_USD'].median())
+]
+st.dataframe(high_value_risk.head(10))
+
+# ===== TOP HIGH RISK CLIENTS =====
+st.markdown("---")
+st.subheader("Top 20 High Risk Clients")
+
+top20 = filtered.sort_values(by='Risk_Score', ascending=False).head(20)
+
+def highlight_risk(row):
+    if row['Risk_Category'] == "High Risk":
+        return ['background-color:#ff4b4b;color:white'] * len(row)
+    elif row['Risk_Category'] == "Medium Risk":
+        return ['background-color:#ffa600'] * len(row)
+    else:
+        return ['background-color:#2ecc71'] * len(row)
+
+st.dataframe(top20.style.apply(highlight_risk, axis=1))
+
+# ===== RETENTION STRATEGIES =====
 st.markdown("---")
 if st.button("Generate Retention Strategy"):
-    st.success("""
-• Offer discounts for delayed payments  
-• Assign account managers to high complaint clients  
-• Encourage long-term contracts  
-• Provide training for low usage customers  
-""")
+    st.write("### Recommended Actions")
+    st.write("• Offer discounts to clients with payment delays > 30 days")
+    st.write("• Assign dedicated account managers to high complaint clients")
+    st.write("• Provide incentives for long-term contracts")
+    st.write("• Improve response time for support tickets")
+    st.write("• Provide onboarding/training for low usage clients")
 
-# ========= FOOTER =========
+# ===== ETHICAL AI =====
 st.markdown("---")
-st.caption("Developed by Group-2 • Rhinos • BBA Semester 4")
+st.subheader("Ethical Implications of Predicting Client Churn")
+
+st.write("""
+• Predictive models may contain bias from historical data.  
+• Labeling clients as high-risk can affect relationships unfairly.  
+• Client data must be protected and handled securely.  
+• AI predictions should support human decisions, not replace them.
+""")
