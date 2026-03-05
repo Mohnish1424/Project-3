@@ -1,11 +1,3 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib import rcParams
-
-# ─────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────
 st.set_page_config(
@@ -1165,3 +1157,4 @@ st.markdown(
     f'</div>',
     unsafe_allow_html=True
 )
+
