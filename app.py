@@ -2,173 +2,350 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 
-st.set_page_config(page_title="Client Risk Dashboard", layout="wide")
+st.set_page_config(
+    page_title="B2B Client Risk Intelligence Dashboard",
+    page_icon="📊",
+    layout="wide"
+)
 
-# ---------- DATA ----------
+# -----------------------------
+# Styling
+# -----------------------------
 
-@st.cache_data
-def load_data():
+st.markdown("""
+<style>
 
-    rng = np.random.default_rng(42)
+body {
+    font-family: 'Segoe UI', sans-serif;
+}
 
-    df = pd.DataFrame({
-        "Client":[f"Client-{i}" for i in range(200)],
-        "Region":rng.choice(["North","South","East","West"],200),
-        "Industry":rng.choice(["Finance","Healthcare","Retail","Tech"],200),
-        "Revenue":rng.integers(2000,50000,200),
-        "Usage":rng.integers(10,100,200),
-        "Payment_Delay":rng.integers(0,90,200),
-        "Contract":rng.choice([3,6,12,24],200),
-        "Tickets":rng.integers(0,15,200)
-    })
+.kpi-card{
+    background-color:#F5F7FA;
+    padding:20px;
+    border-radius:10px;
+    text-align:center;
+    border:1px solid #E0E0E0;
+}
 
-    def risk(row):
+</style>
+""", unsafe_allow_html=True)
 
-        score=0
+# -----------------------------
+# Load Dataset
+# -----------------------------
 
-        if row["Payment_Delay"]>30: score+=2
-        if row["Usage"]<50: score+=2
-        if row["Contract"]<12: score+=2
-        if row["Tickets"]>5: score+=2
+df = pd.read_csv("B2B_Client_Churn_5000.csv")
 
-        return score
+# -----------------------------
+# Risk Score Logic
+# -----------------------------
 
-    df["Risk_Score"]=df.apply(risk,axis=1)
+def calculate_risk(row):
 
-    def label(x):
+    score = 0
 
-        if x<=2: return "Low Risk"
-        elif x<=5: return "Medium Risk"
-        else: return "High Risk"
+    if row["Payment_Delay_Days"] > 30:
+        score += 3
+    elif row["Payment_Delay_Days"] > 15:
+        score += 2
+    else:
+        score += 1
 
-    df["Risk_Level"]=df["Risk_Score"].apply(label)
+    if row["Monthly_Usage_Score"] < 30:
+        score += 3
+    elif row["Monthly_Usage_Score"] < 60:
+        score += 2
+    else:
+        score += 1
 
-    df["Renewal"]=(rng.random(200)>df["Risk_Score"]/10).astype(int)
+    if row["Contract_Length_Months"] <= 6:
+        score += 3
+    elif row["Contract_Length_Months"] <= 12:
+        score += 2
+    else:
+        score += 1
 
-    return df
+    if row["Support_Tickets_Last30Days"] > 10:
+        score += 3
+    elif row["Support_Tickets_Last30Days"] > 5:
+        score += 2
+    else:
+        score += 1
+
+    return score
 
 
-data=load_data()
+df["Risk_Score"] = df.apply(calculate_risk, axis=1)
 
-# ---------- HEADER ----------
 
-st.title("B2B Client Risk & Churn Prediction Dashboard")
-st.caption("Group-2 • Rhinos • Woxsen University")
+def categorize_risk(score):
 
-# ---------- SIDEBAR ----------
+    if score >= 10:
+        return "High Risk"
+    elif score >= 7:
+        return "Medium Risk"
+    else:
+        return "Low Risk"
 
-st.sidebar.header("Filters")
 
-region=st.sidebar.multiselect("Region",data["Region"].unique())
-industry=st.sidebar.multiselect("Industry",data["Industry"].unique())
+df["Risk_Category"] = df["Risk_Score"].apply(categorize_risk)
 
-filtered=data.copy()
+# -----------------------------
+# Sidebar Filters
+# -----------------------------
 
-if region:
-    filtered=filtered[filtered["Region"].isin(region)]
+st.sidebar.title("Filters")
 
-if industry:
-    filtered=filtered[filtered["Industry"].isin(industry)]
+region_filter = st.sidebar.multiselect(
+    "Region",
+    df["Region"].unique(),
+    default=df["Region"].unique()
+)
 
-# ---------- KPIs ----------
+industry_filter = st.sidebar.multiselect(
+    "Industry",
+    df["Industry"].unique(),
+    default=df["Industry"].unique()
+)
 
-st.subheader("Key Metrics")
+risk_filter = st.sidebar.multiselect(
+    "Risk Category",
+    df["Risk_Category"].unique(),
+    default=df["Risk_Category"].unique()
+)
 
-c1,c2,c3,c4=st.columns(4)
+filtered_df = df[
+    (df["Region"].isin(region_filter)) &
+    (df["Industry"].isin(industry_filter)) &
+    (df["Risk_Category"].isin(risk_filter))
+]
 
-total=len(filtered)
-high=(filtered["Risk_Level"]=="High Risk").sum()
-churn=round((filtered["Renewal"]==0).mean()*100,1)
-avg=round(filtered["Revenue"].mean(),0)
+# -----------------------------
+# KPIs
+# -----------------------------
 
-c1.metric("Total Clients",total)
-c2.metric("High Risk",high)
-c3.metric("Churn Rate",f"{churn}%")
-c4.metric("Avg Revenue",f"${avg}")
+total_clients = len(filtered_df)
+
+high_risk = len(filtered_df[filtered_df["Risk_Category"] == "High Risk"])
+
+avg_revenue = filtered_df["Monthly_Revenue_USD"].mean()
+
+churn_rate = (filtered_df["Renewal_Status"] == "No").mean() * 100
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h4>Total Clients</h4>
+    <h2>{total_clients}</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h4>High Risk Clients</h4>
+    <h2>{high_risk}</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col3:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h4>Predicted Churn Rate</h4>
+    <h2>{churn_rate:.2f}%</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col4:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h4>Avg Revenue / Client</h4>
+    <h2>${avg_revenue:.0f}</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.divider()
 
-# ---------- CHARTS ----------
+# -----------------------------
+# Charts
+# -----------------------------
 
-col1,col2=st.columns(2)
+col1, col2 = st.columns(2)
 
 with col1:
 
-    st.subheader("Risk Distribution")
+    st.subheader("Risk Category Distribution")
 
-    risk_counts=filtered["Risk_Level"].value_counts()
+    fig, ax = plt.subplots()
 
-    fig,ax=plt.subplots()
-
-    ax.bar(risk_counts.index,risk_counts.values)
+    filtered_df["Risk_Category"].value_counts().plot(
+        kind="bar",
+        ax=ax
+    )
 
     st.pyplot(fig)
+
 
 with col2:
 
-    st.subheader("Industry Risk")
+    st.subheader("Industry Wise Risk")
 
-    ind=filtered.groupby("Industry")["Risk_Score"].mean()
+    industry_risk = pd.crosstab(
+        filtered_df["Industry"],
+        filtered_df["Risk_Category"]
+    )
 
-    fig,ax=plt.subplots()
+    fig, ax = plt.subplots()
 
-    ax.bar(ind.index,ind.values)
+    industry_risk.plot(kind="bar", stacked=True, ax=ax)
 
     st.pyplot(fig)
+
+# -----------------------------
+# Scatter Plot
+# -----------------------------
+
+st.subheader("Revenue vs Risk")
+
+fig, ax = plt.subplots()
+
+ax.scatter(
+    filtered_df["Risk_Score"],
+    filtered_df["Monthly_Revenue_USD"]
+)
+
+ax.set_xlabel("Risk Score")
+ax.set_ylabel("Monthly Revenue")
+
+st.pyplot(fig)
+
+# -----------------------------
+# Machine Learning Model
+# -----------------------------
 
 st.divider()
+st.header("Churn Prediction Model")
 
-col3,col4=st.columns(2)
+model_df = df.copy()
 
-with col3:
+model_df["Renewal_Status"] = model_df["Renewal_Status"].map({"Yes":1,"No":0})
 
-    st.subheader("Revenue vs Risk")
-
-    fig,ax=plt.subplots()
-
-    ax.scatter(filtered["Revenue"],filtered["Risk_Score"])
-
-    st.pyplot(fig)
-
-with col4:
-
-    st.subheader("Contract vs Renewal")
-
-    renew=data.groupby("Contract")["Renewal"].mean()*100
-
-    fig,ax=plt.subplots()
-
-    ax.plot(renew.index,renew.values)
-
-    st.pyplot(fig)
-
-st.divider()
-
-# ---------- HIGH VALUE CLIENTS ----------
-
-st.subheader("High Revenue Clients at Risk")
-
-median=filtered["Revenue"].median()
-
-risk_clients=filtered[
-(filtered["Risk_Level"]=="High Risk") &
-(filtered["Revenue"]>median)
+features = [
+    "Monthly_Usage_Score",
+    "Payment_Delay_Days",
+    "Contract_Length_Months",
+    "Support_Tickets_Last30Days",
+    "Monthly_Revenue_USD"
 ]
 
-st.dataframe(risk_clients.head(10))
+X = model_df[features]
+y = model_df["Renewal_Status"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,y,test_size=0.3,random_state=42
+)
+
+model = DecisionTreeClassifier(max_depth=5)
+
+model.fit(X_train,y_train)
+
+pred = model.predict(X_test)
+
+accuracy = accuracy_score(y_test,pred)
+
+st.write("Model Accuracy:", round(accuracy,3))
+
+cm = confusion_matrix(y_test,pred)
+
+st.write("Confusion Matrix")
+
+st.write(cm)
+
+# Feature Importance
+
+importance = pd.Series(
+    model.feature_importances_,
+    index=features
+).sort_values(ascending=False)
+
+st.subheader("Feature Importance")
+
+fig, ax = plt.subplots()
+
+importance.plot(kind="bar", ax=ax)
+
+st.pyplot(fig)
+
+# -----------------------------
+# Top High Risk Clients
+# -----------------------------
+
+st.divider()
+st.header("Top 20 High Risk Clients")
+
+high_risk_table = filtered_df[
+    filtered_df["Risk_Category"] == "High Risk"
+].sort_values(
+    by="Risk_Score",
+    ascending=False
+).head(20)
+
+st.dataframe(high_risk_table)
+
+# -----------------------------
+# Retention Strategy Generator
+# -----------------------------
 
 st.divider()
 
-# ---------- RETENTION STRATEGY ----------
+st.header("AI Retention Strategy")
 
-st.subheader("Retention Strategy")
+if st.button("Generate Retention Strategy"):
 
-if st.button("Generate Recommendations"):
+    st.success("Recommended Actions")
 
-    st.success("""
-• Offer payment flexibility for delayed clients  
-• Assign account managers to high complaint customers  
-• Provide incentives for long contracts  
-• Improve onboarding for low usage clients
+    st.write("• Offer discount plans to clients with payment delays above 30 days")
+
+    st.write("• Assign dedicated account managers to high revenue clients")
+
+    st.write("• Provide contract renewal incentives for clients with short contracts")
+
+    st.write("• Improve support response for clients with high ticket counts")
+
+    st.write("• Conduct engagement campaigns for low usage customers")
+
+# -----------------------------
+# Responsible AI Section
+# -----------------------------
+
+st.divider()
+
+st.header("Responsible AI Considerations")
+
+st.write("""
+
+Predictive churn models can introduce several ethical concerns.
+
+Bias in Data  
+If historical data reflects bias (for example certain industries receiving worse service),
+the model may unfairly label them as high-risk.
+
+Client Labeling Risk  
+Labeling a client as "High Risk" may influence company behavior toward them, which could
+damage long-term relationships.
+
+Data Privacy  
+Companies must ensure that sensitive client data used for prediction is handled securely
+and complies with data protection regulations.
+
+Responsible Decision Making  
+AI predictions should support human decision making rather than replace it. Managers should
+interpret predictions carefully before taking action.
+
 """)
