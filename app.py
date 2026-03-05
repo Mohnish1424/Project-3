@@ -11,7 +11,7 @@ st.set_page_config(page_title="Client Risk Dashboard", layout="wide")
 col_logo, col_title = st.columns([1,6])
 
 with col_logo:
-    st.image("logo.png", width=90)
+    st.image("logo.png", width=120)
 
 with col_title:
     st.title("B2B Client Risk & Churn Prediction Dashboard")
