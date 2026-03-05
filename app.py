@@ -62,23 +62,49 @@ html, body, [class*="css"], .stApp {
 ::-webkit-scrollbar { width: 5px; background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: #1a2d45; border-radius: 3px; }
 
-/* ── Sidebar background ─────────────────────────────── */
+/* ── Sidebar — comprehensive visibility fix ─────────── */
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div,
 [data-testid="stSidebar"] > div:first-child {
-    background: var(--s1) !important;
-    border-right: 1px solid var(--nblue-bdr) !important;
+    background-color: #0A0A0A !important;
+    border-right: 1px solid rgba(0,191,255,0.22) !important;
 }
-/* multiselect widget inside sidebar */
-[data-testid="stSidebar"] .stMultiSelect [data-baseweb="select"] > div {
-    background: var(--s2) !important;
-    border: 1px solid var(--nblue-bdr) !important;
+/* Force ALL text in sidebar to be visible white */
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] div,
+[data-testid="stSidebar"] strong,
+[data-testid="stSidebar"] small,
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] .stMarkdown * {
+    color: #F0F8FF !important;
+}
+/* Multiselect input box */
+[data-testid="stSidebar"] [data-baseweb="select"] > div:first-child {
+    background-color: #111111 !important;
+    border: 1px solid rgba(0,191,255,0.3) !important;
     border-radius: 7px !important;
 }
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] .stMarkdown p,
-[data-testid="stSidebar"] span { color: var(--white2) !important; }
+[data-testid="stSidebar"] [data-baseweb="select"] * {
+    color: #F0F8FF !important;
+    background-color: transparent !important;
+}
+/* Selected tags/chips */
 [data-testid="stSidebar"] [data-baseweb="tag"] {
-    background: var(--nblue-dim) !important;
-    color: var(--nblue-lt) !important;
+    background-color: rgba(0,191,255,0.18) !important;
+    color: #33CCFF !important;
+    border: 1px solid rgba(0,191,255,0.35) !important;
+}
+/* Dropdown menu options */
+[data-testid="stSidebar"] ul[role="listbox"],
+[data-testid="stSidebar"] ul[role="listbox"] li {
+    background-color: #111111 !important;
+    color: #F0F8FF !important;
+}
+/* Divider line */
+[data-testid="stSidebar"] hr {
+    border-color: rgba(0,191,255,0.18) !important;
 }
 
 /* ── Section label ─────────────────────────────────── */
