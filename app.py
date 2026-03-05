@@ -24,7 +24,7 @@ st.markdown("""
 col1, col2 = st.columns([1,5])
 
 with col1:
-    st.image("logo.png", width=95)   # balanced logo size
+    st.image("logo.png", width=95)
 
 with col2:
     st.title("B2B Client Risk & Churn Prediction Dashboard")
@@ -58,17 +58,6 @@ ticket_threshold = st.sidebar.slider("Support Ticket Risk Level", 1, 10, 5)
 st.sidebar.subheader("Filters")
 region = st.sidebar.multiselect("Region", data['Region'].unique())
 industry = st.sidebar.multiselect("Industry", data['Industry'].unique())
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("👥 Team — Group 2")
-st.sidebar.write("""
-**Rhinos**
-
-• Mohnish Singh Patwal  
-• Shreyas Kandi  
-• Akash Krishna  
-• Nihal Talampally
-""")
 
 # ========= PRESENTATION MODE =========
 st.sidebar.markdown("---")
@@ -132,15 +121,20 @@ st.markdown("---")
 if not presentation_mode:
     st.subheader("Risk Distribution")
 
-chart = st.radio("Chart Type", ["Bar","Pie"], horizontal=True)
 counts = filtered['Risk_Category'].value_counts()
 
-if chart == "Bar":
-    st.bar_chart(counts, height=230)
-else:
-    fig, ax = plt.subplots(figsize=(3,3))
-    ax.pie(counts, labels=counts.index, autopct='%1.1f%%')
-    st.pyplot(fig)
+fig, ax = plt.subplots(figsize=(4,2.5))  # smaller & balanced
+ax.bar(counts.index, counts.values, color="#3B82F6")
+ax.set_facecolor("#111827")
+fig.patch.set_facecolor("#111827")
+
+for i, v in enumerate(counts.values):
+    ax.text(i, v + 50, str(v), ha='center', color="white")
+
+ax.tick_params(colors='white')
+ax.spines[:].set_visible(False)
+
+st.pyplot(fig)
 
 # ========= ANALYTICS =========
 st.markdown("---")
@@ -155,8 +149,8 @@ with col2:
     if not presentation_mode:
         st.subheader("Revenue vs Risk")
     density = st.checkbox("Show Density")
-    data_plot = filtered.sample(1000) if density else filtered
-    st.scatter_chart(data_plot, x='Monthly_Revenue_USD', y='Risk_Score', height=270)
+    plot_data = filtered.sample(1000) if density else filtered
+    st.scatter_chart(plot_data, x='Monthly_Revenue_USD', y='Risk_Score', height=260)
 
 # ========= MACHINE LEARNING =========
 st.markdown("---")
@@ -183,16 +177,14 @@ pred = model.predict(X_test)
 st.write("Accuracy:", round(accuracy_score(y_test,pred),3))
 
 # ===== CONFUSION MATRIX =====
-fig, ax = plt.subplots(figsize=(3.5,3))
+fig, ax = plt.subplots(figsize=(3,3))
 cm = confusion_matrix(y_test,pred)
 cax = ax.imshow(cm, cmap="Blues")
 
 for i in range(len(cm)):
     for j in range(len(cm[0])):
-        ax.text(j,i,cm[i,j], ha='center', va='center')
+        ax.text(j,i,cm[i,j], ha='center', va='center', color="black")
 
-ax.set_xlabel("Predicted")
-ax.set_ylabel("Actual")
 ax.set_title("Confusion Matrix")
 fig.colorbar(cax)
 st.pyplot(fig)
@@ -212,16 +204,6 @@ hv = filtered[(filtered['Risk_Category']=="High Risk") &
               (filtered['Monthly_Revenue_USD'] > filtered['Monthly_Revenue_USD'].median())]
 st.dataframe(hv.head(10))
 
-# ========= TOP CLIENTS =========
-st.markdown("---")
-if not presentation_mode:
-    st.subheader("Top High Risk Clients")
-
-sort = st.selectbox("Sort By", ["Risk Score","Revenue"])
-top = filtered.sort_values(by='Monthly_Revenue_USD' if sort=="Revenue" else 'Risk_Score',
-                           ascending=False).head(20)
-st.dataframe(top)
-
 # ========= RETENTION STRATEGY =========
 st.markdown("---")
 if st.button("Generate Retention Strategy"):
@@ -230,18 +212,6 @@ if st.button("Generate Retention Strategy"):
 • Assign account managers to high complaint clients  
 • Encourage long-term contracts  
 • Provide training for low usage customers  
-""")
-
-# ========= ETHICS =========
-st.markdown("---")
-if not presentation_mode:
-    st.subheader("Responsible AI Considerations")
-
-st.write("""
-• Avoid bias in predictive models  
-• Labeling clients high-risk may affect relationships  
-• Protect client data & privacy  
-• Use AI to support decisions, not replace them  
 """)
 
 # ========= FOOTER =========
