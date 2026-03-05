@@ -14,7 +14,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-)
 
 # ══════════════════════════════════════════════════════════════
 #  COLOR PALETTE  —  Neon White · Bright Red · Neon Blue
