@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 st.set_page_config(
     page_title="B2B Client Risk Intelligence | Woxsen University",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ══════════════════════════════════════════════════════════════
@@ -317,90 +317,73 @@ except Exception as e:
     data_ok, data_err = False, str(e)
 
 # ══════════════════════════════════════════════════════════════
-#  SIDEBAR  — 100% native Streamlit widgets (no HTML)
-# ══════════════════════════════════════════════════════════════
-with st.sidebar:
-
-    # Logo — try local file, fall back to st.write text
-    try:
-        st.image("logo.png", use_container_width=True)
-    except Exception:
-        st.markdown(
-            "<h3 style='color:#00BFFF;font-family:Manrope,sans-serif;"
-            "font-weight:800;margin:0.5rem 0 0.2rem;'>Woxsen<br>"
-            "<span style='color:#FF4444;'>University</span></h3>",
-            unsafe_allow_html=True
-        )
-
-    st.divider()
-
-    # ── Filters ───────────────────────────────────────────────
-    st.markdown("**Filters**")
-
-    if data_ok:
-        region      = st.multiselect("Region",        data['Region'].unique())
-        industry    = st.multiselect("Industry",      data['Industry'].unique())
-        risk_filter = st.multiselect("Risk Category", data['Risk_Category'].unique())
-    else:
-        region = industry = risk_filter = []
-
-    st.divider()
-
-    # ── Team ──────────────────────────────────────────────────
-    st.markdown("**Group-2 · Rhinos**")
-    st.markdown(
-        "Mohnish Singh Patwal  \n"
-        "Shreyas Kandi  \n"
-        "Akash Krishna  \n"
-        "Nihal Talampally"
-    )
-    st.caption("BBA Semester 4 · Woxsen University")
-
-# ══════════════════════════════════════════════════════════════
 #  HEADER
 # ══════════════════════════════════════════════════════════════
-hc1, hc2 = st.columns([1, 6])
+hc1, hc2 = st.columns([1, 7])
 with hc1:
     try:
         st.image("logo.png", use_container_width=True)
     except Exception:
         st.markdown(
-            "<p style='font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;"
-            "color:#00BFFF;line-height:1.3;padding:0.4rem 0;'>"
+            "<p style='font-family:Manrope,sans-serif;font-size:1.1rem;font-weight:800;"
+            "color:#00BFFF;line-height:1.3;padding:0.5rem 0;'>"
             "Woxsen<br><span style='color:#FF4444;'>University</span></p>",
             unsafe_allow_html=True
         )
 with hc2:
     st.markdown(
-        "<p style='font-family:Manrope,sans-serif;font-size:1.2rem;font-weight:800;"
-        "color:#F0F8FF;letter-spacing:-0.02em;margin:0.3rem 0 0.15rem;'>"
+        "<p style='font-family:Manrope,sans-serif;font-size:1.25rem;font-weight:800;"
+        "color:#F0F8FF;letter-spacing:-0.02em;margin:0.3rem 0 0.12rem;'>"
         "B2B Client Risk Intelligence Dashboard</p>"
         "<p style='font-size:0.67rem;color:#4A6A8A;text-transform:uppercase;"
-        "letter-spacing:0.07em;margin:0 0 0.5rem;'>"
+        "letter-spacing:0.07em;margin:0 0 0.45rem;'>"
         "AI-powered churn prediction &amp; retention analytics</p>"
         "<span style='font-size:0.63rem;font-weight:600;letter-spacing:0.06em;"
         "text-transform:uppercase;padding:0.22rem 0.6rem;border-radius:5px;"
-        "border:1px solid rgba(0,191,255,0.22);color:#C8DCF0;"
-        "background:#0A1224;margin-right:0.4rem;'>Group-2 · Rhinos</span>"
+        "border:1px solid rgba(0,191,255,0.25);color:#C8DCF0;"
+        "background:#111111;margin-right:0.4rem;'>Group-2 · Rhinos</span>"
         "<span style='font-size:0.63rem;font-weight:600;letter-spacing:0.06em;"
         "text-transform:uppercase;padding:0.22rem 0.6rem;border-radius:5px;"
-        "border:1px solid rgba(0,191,255,0.22);color:#C8DCF0;"
-        "background:#0A1224;margin-right:0.4rem;'>BBA Semester 4</span>"
+        "border:1px solid rgba(0,191,255,0.25);color:#C8DCF0;"
+        "background:#111111;margin-right:0.4rem;'>BBA Semester 4</span>"
         "<span style='font-size:0.63rem;font-weight:600;letter-spacing:0.06em;"
         "text-transform:uppercase;padding:0.22rem 0.6rem;border-radius:5px;"
-        "border:1px solid rgba(0,191,255,0.22);color:#C8DCF0;"
-        "background:#0A1224;'>Woxsen University</span>",
+        "border:1px solid rgba(0,191,255,0.25);color:#C8DCF0;"
+        "background:#111111;'>Woxsen University</span>",
         unsafe_allow_html=True
     )
 
-st.markdown(
-    "<div style='height:1px;background:rgba(0,191,255,0.18);margin:0.4rem 0 1.3rem;'></div>",
-    unsafe_allow_html=True
-)
+st.markdown("<div style='height:1px;background:rgba(0,191,255,0.18);margin:0.5rem 0 0.8rem;'></div>",
+            unsafe_allow_html=True)
 
 if not data_ok:
     st.error(f"Could not load CSV: {data_err}. Place B2B_Client_Churn_5000.csv in the same folder.")
     st.stop()
+
+# ══════════════════════════════════════════════════════════════
+#  FILTERS — on main page inside expander (always accessible)
+# ══════════════════════════════════════════════════════════════
+with st.expander("🔽  Filters & Team", expanded=False):
+    fa, fb, fc, fd = st.columns([2, 2, 2, 3])
+    with fa:
+        region      = st.multiselect("Region",        data['Region'].unique())
+    with fb:
+        industry    = st.multiselect("Industry",      data['Industry'].unique())
+    with fc:
+        risk_filter = st.multiselect("Risk Category", data['Risk_Category'].unique())
+    with fd:
+        st.markdown(
+            "<p style='font-size:0.78rem;font-weight:700;color:#00BFFF;"
+            "margin:0 0 0.3rem;'>Group-2 · Rhinos</p>"
+            "<p style='font-size:0.78rem;color:#F0F8FF;line-height:1.7;margin:0;'>"
+            "Mohnish Singh Patwal &nbsp;·&nbsp; Shreyas Kandi<br>"
+            "Akash Krishna &nbsp;·&nbsp; Nihal Talampally</p>"
+            "<p style='font-size:0.67rem;color:#4A6A8A;margin:0.3rem 0 0;'>BBA Semester 4 · Woxsen University</p>",
+            unsafe_allow_html=True
+        )
+
+st.markdown("<div style='height:1px;background:rgba(0,191,255,0.18);margin:0.4rem 0 0.5rem;'></div>",
+            unsafe_allow_html=True)
 
 # ── Apply filters ────────────────────────────────────────────
 filtered = data.copy()
