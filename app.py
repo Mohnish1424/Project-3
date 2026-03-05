@@ -251,10 +251,10 @@ html, body, [class*="css"], .stApp {
 .sblbl { font-size:0.64rem; font-weight:700; color:var(--t3); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.28rem; }
 
 /* ── Team cards ────────────────────────────────────── */
-.tgrid { display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.6rem; }
+.tgrid { display:flex; flex-direction:column; gap:0.45rem; margin-top:0.5rem; }
 .tcard {
     background:var(--s2); border:1px solid var(--border);
-    border-radius:7px; padding:0.58rem 0.75rem;
+    border-radius:7px; padding:0.55rem 0.75rem;
     display:flex; align-items:center; gap:0.52rem;
 }
 .tav {
@@ -348,67 +348,130 @@ except Exception as e:
 #  SIDEBAR
 # ══════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("""
-    <div style="text-align:center;padding:0.8rem 0 1.15rem;">
-        <img src="https://woxsen.edu.in/wp-content/uploads/2022/04/woxsen-logo-new.png"
-             style="height:36px;width:auto;filter:brightness(1.1);"
-             onerror="this.style.display='none'">
-        <div style="font-size:0.6rem;color:#3D5A80;text-transform:uppercase;
-                    letter-spacing:0.09em;margin-top:0.45rem;">Dashboard Filters</div>
-    </div>
-    """, unsafe_allow_html=True)
 
+    # ── Logo ─────────────────────────────────────────────────
+    logo_loaded = False
+    try:
+        st.image("logo.png", use_container_width=True)
+        logo_loaded = True
+    except Exception:
+        pass
+    if not logo_loaded:
+        st.markdown(
+            """<div style="text-align:center;padding:0.7rem 0.5rem 0.2rem;">
+              <div style="font-family:Manrope,sans-serif;font-size:1.05rem;font-weight:800;
+                          color:#3B82F6;letter-spacing:-0.01em;line-height:1.3;">
+                Woxsen<br><span style="color:#06B6D4;">University</span>
+              </div>
+              <div style="width:38px;height:2px;background:linear-gradient(90deg,#2563EB,#06B6D4);
+                          margin:0.4rem auto 0;border-radius:2px;"></div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+
+    st.markdown(
+        """<div style="text-align:center;padding:0.15rem 0 0.7rem;">
+          <span style="font-size:0.6rem;color:#3D5A80;text-transform:uppercase;letter-spacing:0.1em;">
+            Dashboard Filters
+          </span>
+        </div>
+        <div style="height:1px;background:rgba(37,99,235,0.18);margin-bottom:0.85rem;"></div>""",
+        unsafe_allow_html=True
+    )
+
+    # ── Filters ───────────────────────────────────────────────
     if data_ok:
-        st.markdown('<div class="sblbl">Region</div>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:0.64rem;font-weight:700;color:#3D5A80;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 4px;">Region</p>', unsafe_allow_html=True)
         region = st.multiselect("", data['Region'].unique(),
                                 placeholder="All regions", label_visibility="collapsed")
-        st.markdown('<div class="sblbl" style="margin-top:0.8rem;">Industry</div>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:0.64rem;font-weight:700;color:#3D5A80;text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 4px;">Industry</p>', unsafe_allow_html=True)
         industry = st.multiselect("", data['Industry'].unique(),
                                   placeholder="All industries", label_visibility="collapsed")
-        st.markdown('<div class="sblbl" style="margin-top:0.8rem;">Risk Category</div>', unsafe_allow_html=True)
+        st.markdown('<p style="font-size:0.64rem;font-weight:700;color:#3D5A80;text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 4px;">Risk Category</p>', unsafe_allow_html=True)
         risk_filter = st.multiselect("", data['Risk_Category'].unique(),
                                      placeholder="All categories", label_visibility="collapsed")
     else:
         region = industry = risk_filter = []
 
-    st.markdown('<div style="height:1px;background:rgba(37,99,235,0.14);margin:1.1rem 0;"></div>',
-                unsafe_allow_html=True)
-
-    if st.button("👥 Team Members"):
-        st.markdown("""
-        <div class="tgrid">
-          <div class="tcard"><div class="tav">M</div><div><div class="tnm">Mohnish Singh Patwal</div><div class="trl">Member</div></div></div>
-          <div class="tcard"><div class="tav">S</div><div><div class="tnm">Shreyas Kandi</div><div class="trl">Member</div></div></div>
-          <div class="tcard"><div class="tav">A</div><div><div class="tnm">Akash Krishna</div><div class="trl">Member</div></div></div>
-          <div class="tcard"><div class="tav">N</div><div><div class="tnm">Nihal Talampally</div><div class="trl">Member</div></div></div>
-        </div>
-        <div style="font-size:0.6rem;color:#3D5A80;text-align:center;margin-top:0.65rem;">
-            Section A · BBA Semester 4 · Woxsen University
-        </div>
-        """, unsafe_allow_html=True)
+    # ── Team members — fully inline styles ───────────────────
+    st.markdown(
+        """<div style="height:1px;background:rgba(37,99,235,0.18);margin:1rem 0 0.75rem;"></div>
+        <p style="font-size:0.64rem;font-weight:700;color:#3D5A80;text-transform:uppercase;
+                   letter-spacing:0.08em;margin:0 0 0.5rem;">Group-2 · Rhinos</p>""",
+        unsafe_allow_html=True
+    )
+    members = [("M","Mohnish Singh Patwal"),("S","Shreyas Kandi"),
+               ("A","Akash Krishna"),("N","Nihal Talampally")]
+    for init, name in members:
+        st.markdown(
+            f"""<div style="display:flex;align-items:center;gap:9px;
+                    background:#0D1628;border:1px solid rgba(37,99,235,0.2);
+                    border-radius:7px;padding:8px 10px;margin-bottom:6px;">
+              <div style="width:28px;height:28px;border-radius:50%;flex-shrink:0;
+                          background:linear-gradient(135deg,#2563EB,#06B6D4);
+                          display:flex;align-items:center;justify-content:center;
+                          font-size:11px;font-weight:700;color:#fff;">{init}</div>
+              <div>
+                <div style="font-size:11.5px;font-weight:600;color:#DDE8F8;">{name}</div>
+                <div style="font-size:9px;color:#3D5A80;text-transform:uppercase;letter-spacing:0.04em;">Member</div>
+              </div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+    st.markdown(
+        """<div style="font-size:9px;color:#3D5A80;text-align:center;margin-top:8px;line-height:1.65;">
+            Section A · BBA Semester 4<br>Woxsen University
+        </div>""",
+        unsafe_allow_html=True
+    )
 
 # ══════════════════════════════════════════════════════════════
 #  HEADER
 # ══════════════════════════════════════════════════════════════
-st.markdown("""
-<div class="hdr">
-  <div class="hdr-left">
-    <img class="hdr-logo"
-         src="https://woxsen.edu.in/wp-content/uploads/2022/04/woxsen-logo-new.png"
-         onerror="this.src='';this.style.display='none';">
-    <div class="hdr-rule"></div>
-    <div>
-      <div class="hdr-title">B2B Client Risk Intelligence Dashboard</div>
-      <div class="hdr-sub">AI-powered churn prediction &amp; retention analytics</div>
-    </div>
-  </div>
-  <div class="hdr-right">
-    <span class="tag">Group-2 · Rhinos</span>
-    <span class="tag">BBA Sem 4 · Section A</span>
-    <span class="tag">Woxsen University</span>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+hcol1, hcol2 = st.columns([1, 6])
+with hcol1:
+    hlogo = False
+    try:
+        st.image("logo.png", use_container_width=True)
+        hlogo = True
+    except Exception:
+        pass
+    if not hlogo:
+        st.markdown(
+            """<div style="font-family:Manrope,sans-serif;font-size:1rem;font-weight:800;
+                        color:#3B82F6;padding:0.55rem 0;line-height:1.3;">
+                Woxsen<br><span style="color:#06B6D4;">University</span>
+              </div>""",
+            unsafe_allow_html=True
+        )
+with hcol2:
+    st.markdown(
+        """<div style="padding:0.45rem 0 0.2rem;">
+          <div style="font-family:Manrope,sans-serif;font-size:1.15rem;font-weight:800;
+                      color:#DDE8F8;letter-spacing:-0.02em;">
+            B2B Client Risk Intelligence Dashboard
+          </div>
+          <div style="font-size:0.67rem;font-weight:500;color:#3D5A80;text-transform:uppercase;
+                      letter-spacing:0.07em;margin-top:0.2rem;">
+            AI-powered churn prediction &amp; retention analytics
+          </div>
+          <div style="margin-top:0.55rem;display:flex;gap:0.42rem;flex-wrap:wrap;">
+            <span style="font-size:0.63rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+                         padding:0.24rem 0.6rem;border-radius:5px;border:1px solid rgba(37,99,235,0.22);
+                         color:#7A9BC8;background:#0D1628;">Group-2 · Rhinos</span>
+            <span style="font-size:0.63rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+                         padding:0.24rem 0.6rem;border-radius:5px;border:1px solid rgba(37,99,235,0.22);
+                         color:#7A9BC8;background:#0D1628;">BBA Sem 4 · Section A</span>
+            <span style="font-size:0.63rem;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+                         padding:0.24rem 0.6rem;border-radius:5px;border:1px solid rgba(37,99,235,0.22);
+                         color:#7A9BC8;background:#0D1628;">Woxsen University</span>
+          </div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+
+st.markdown('<div style="height:1px;background:rgba(37,99,235,0.18);margin:0.4rem 0 1.2rem;"></div>',
+            unsafe_allow_html=True)
 
 if not data_ok:
     st.error(f"Could not load CSV: {data_err}. Place B2B_Client_Churn_5000.csv in the same folder.")
