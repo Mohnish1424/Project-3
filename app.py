@@ -128,25 +128,35 @@ elif churn_rate < 40:
 else:
     st.error("🔴 High churn risk")
 
-# ===== RISK DISTRIBUTION =====
 st.markdown("---")
-st.subheader("Risk Distribution")
 
-risk_counts = filtered['Risk_Category'].value_counts()
-fig, ax = plt.subplots()
-ax.bar(risk_counts.index, risk_counts.values)
-st.pyplot(fig)
+col1, col2 = st.columns(2)
 
-# ===== INDUSTRY RISK =====
-st.markdown("---")
-st.subheader("Industry-wise Risk")
-st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean())
+with col1:
+    st.subheader("Risk Distribution")
+
+    risk_counts = filtered['Risk_Category'].value_counts()
+    fig, ax = plt.subplots(figsize=(4,2.5))
+    ax.bar(risk_counts.index, risk_counts.values)
+    st.pyplot(fig)
+
+with col2:
+    st.subheader("Industry-wise Risk")
+    st.bar_chart(filtered.groupby('Industry')['Risk_Score'].mean())
 
 # ===== REVENUE VS RISK =====
 st.markdown("---")
-st.subheader("Revenue vs Risk")
-st.scatter_chart(filtered, x='Monthly_Revenue_USD', y='Risk_Score')
 
+col3, col4 = st.columns(2)
+
+with col3:
+    st.subheader("Revenue vs Risk")
+    st.scatter_chart(filtered, x='Monthly_Revenue_USD', y='Risk_Score')
+
+with col4:
+    st.subheader("Churn Rate by Industry")
+    st.bar_chart(data.groupby('Industry')['Renewal_Status'].mean())
+    
 # ===== MACHINE LEARNING MODEL =====
 st.markdown("---")
 st.subheader("Churn Prediction Model")
@@ -186,33 +196,24 @@ st.bar_chart(importance.set_index('Feature'))
 
 # ===== EXTRA ANALYTICS =====
 st.markdown("---")
-st.subheader("Churn Rate by Industry")
-st.bar_chart(data.groupby('Industry')['Renewal_Status'].mean())
 
-st.subheader("Payment Delay vs Churn")
-st.line_chart(data.groupby('Payment_Delay_Days')['Renewal_Status'].mean())
+col5, col6 = st.columns(2)
 
-st.subheader("High Revenue Clients at Risk")
-high_value_risk = filtered[
-    (filtered['Risk_Category']=="High Risk") &
-    (filtered['Monthly_Revenue_USD'] > filtered['Monthly_Revenue_USD'].median())
-]
-st.dataframe(high_value_risk.head(10))
+with col5:
+    st.subheader("Payment Delay vs Churn")
+    st.line_chart(data.groupby('Payment_Delay_Days')['Renewal_Status'].mean())
 
+with col6:
+    st.subheader("Feature Importance")
+    st.bar_chart(importance.set_index('Feature'))
+    
 # ===== TOP HIGH RISK CLIENTS =====
 st.markdown("---")
+st.subheader("High Revenue Clients at Risk")
+st.dataframe(high_value_risk.head(10))
+
+st.markdown("---")
 st.subheader("Top 20 High Risk Clients")
-
-top20 = filtered.sort_values(by='Risk_Score', ascending=False).head(20)
-
-def highlight_risk(row):
-    if row['Risk_Category'] == "High Risk":
-        return ['background-color:#ff4b4b;color:white'] * len(row)
-    elif row['Risk_Category'] == "Medium Risk":
-        return ['background-color:#ffa600'] * len(row)
-    else:
-        return ['background-color:#2ecc71'] * len(row)
-
 st.dataframe(top20.style.apply(highlight_risk, axis=1))
 
 # ===== RETENTION STRATEGIES =====
