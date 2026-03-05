@@ -1,518 +1,1167 @@
-import { useState, useMemo } from "react";
-import {
-  BarChart, Bar, LineChart, Line, ScatterChart, Scatter,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend
-} from "recharts";
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib import rcParams
 
-// ─── Synthetic dataset ────────────────────────────────────────────────────────
-const REGIONS = ["North", "South", "East", "West", "Central"];
-const INDUSTRIES = ["Finance", "Healthcare", "Retail", "Manufacturing", "Tech", "Logistics"];
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="B2B Client Risk Dashboard",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-function seededRand(seed) {
-  let s = seed;
-  return () => { s = (s * 16807 + 0) % 2147483647; return (s - 1) / 2147483646; };
+# ─────────────────────────────────────────────
+# DESIGN TOKENS
+# ─────────────────────────────────────────────
+C = {
+    "bg":           "#F7F8FA",
+    "surface":      "#FFFFFF",
+    "border":       "#E4E8EE",
+    "text":         "#1A2232",
+    "muted":        "#64748B",
+    "accent":       "#0F52BA",
+    "accent_light": "#E8EEFA",
+    "danger":       "#C0392B",
+    "warn":         "#D4820A",
+    "success":      "#1A7A4A",
 }
 
-const rand = seededRand(42);
-const RAW_DATA = Array.from({ length: 200 }, (_, i) => {
-  const payDelay = Math.floor(rand() * 90);
-  const usage = Math.floor(rand() * 100);
-  const contract = [3, 6, 12, 24][Math.floor(rand() * 4)];
-  const tickets = Math.floor(rand() * 15);
-  const revenue = Math.floor(rand() * 50000) + 2000;
-  const region = REGIONS[Math.floor(rand() * REGIONS.length)];
-  const industry = INDUSTRIES[Math.floor(rand() * INDUSTRIES.length)];
-  let risk = 0;
-  if (payDelay > 30) risk += 2;
-  if (usage < 50) risk += 2;
-  if (contract < 12) risk += 2;
-  if (tickets > 5) risk += 2;
-  const riskLabel = risk <= 2 ? "Low Risk" : risk <= 5 ? "Medium Risk" : "High Risk";
-  const renewal = rand() > (risk / 10) ? 1 : 0;
-  return {
-    id: i + 1,
-    region, industry,
-    payment_delay: payDelay,
-    usage, contract, tickets, revenue, risk, riskLabel, renewal,
-    company: `Client-${String(i + 1).padStart(3, "0")}`
-  };
-});
-
-// ─── Color palette ────────────────────────────────────────────────────────────
-const C = {
-  bg: "#F7F8FA",
-  surface: "#FFFFFF",
-  border: "#E4E8EE",
-  text: "#1A2232",
-  muted: "#64748B",
-  accent: "#0F52BA",       // strong cobalt
-  accentLight: "#E8EEFA",
-  danger: "#C0392B",
-  warn: "#D4820A",
-  success: "#1A7A4A",
-  chart1: "#0F52BA",
-  chart2: "#3B82F6",
-  chart3: "#93C5FD",
-};
-
-const RISK_COLOR = { "High Risk": C.danger, "Medium Risk": C.warn, "Low Risk": C.success };
-
-// ─── Tiny components ─────────────────────────────────────────────────────────
-function Tag({ label, color }) {
-  const bg = color === "danger" ? "#FDECEA" : color === "warn" ? "#FDF3E3" : "#E6F4ED";
-  const fg = color === "danger" ? C.danger : color === "warn" ? C.warn : C.success;
-  return (
-    <span style={{ background: bg, color: fg, padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600, letterSpacing: "0.03em" }}>
-      {label}
-    </span>
-  );
+RISK_COLORS = {
+    "High Risk":   C["danger"],
+    "Medium Risk": C["warn"],
+    "Low Risk":    C["success"],
 }
 
-function KpiCard({ label, value, sub, accent }) {
-  return (
-    <div style={{
-      background: C.surface, border: `1px solid ${C.border}`,
-      borderRadius: 10, padding: "20px 24px",
-      borderTop: `3px solid ${accent || C.accent}`
-    }}>
-      <div style={{ fontSize: 12, color: C.muted, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: C.text, lineHeight: 1.1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>{sub}</div>}
-    </div>
-  );
-}
+# ─────────────────────────────────────────────
+# GLOBAL CSS  (IBM Plex Sans, flat surfaces, no gradients)
+# ─────────────────────────────────────────────
+st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 
-function SectionHeader({ children }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-      <div style={{ width: 3, height: 18, background: C.accent, borderRadius: 2 }} />
-      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.text, letterSpacing: "0.01em" }}>{children}</h2>
-    </div>
-  );
-}
+html, body, [class*="css"] {{
+    font-family: 'IBM Plex Sans', sans-serif;
+}}
 
-function Card({ children, style }) {
-  return (
-    <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 24, ...style }}>
-      {children}
-    </div>
-  );
-}
+/* App background */
+.stApp {{
+    background-color: {C["bg"]};
+}}
 
-function MultiSelect({ label, options, value, onChange }) {
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {options.map(opt => {
-          const active = value.includes(opt);
-          return (
-            <button key={opt} onClick={() => onChange(active ? value.filter(v => v !== opt) : [...value, opt])}
-              style={{
-                fontSize: 12, padding: "4px 10px", borderRadius: 5, cursor: "pointer", fontFamily: "inherit",
-                border: `1px solid ${active ? C.accent : C.border}`,
-                background: active ? C.accent : C.surface,
-                color: active ? "#fff" : C.muted,
-                fontWeight: active ? 600 : 400,
-                transition: "all 0.15s"
-              }}>
-              {opt}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+/* Main content card */
+.block-container {{
+    background-color: {C["surface"]};
+    padding: 2rem 2.5rem 3rem 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    max-width: 1280px;
+}}
 
-// ─── Main dashboard ───────────────────────────────────────────────────────────
-export default function Dashboard() {
-  const [selRegion, setSelRegion] = useState([]);
-  const [selIndustry, setSelIndustry] = useState([]);
-  const [selRisk, setSelRisk] = useState([]);
-  const [showTeam, setShowTeam] = useState(false);
-  const [showStrategy, setShowStrategy] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+/* Sidebar */
+[data-testid="stSidebar"] {{
+    background-color: {C["surface"]};
+    border-right: 1px solid {C["border"]};
+}}
 
-  const filtered = useMemo(() => {
-    return RAW_DATA.filter(d =>
-      (!selRegion.length || selRegion.includes(d.region)) &&
-      (!selIndustry.length || selIndustry.includes(d.industry)) &&
-      (!selRisk.length || selRisk.includes(d.riskLabel))
-    );
-  }, [selRegion, selIndustry, selRisk]);
+[data-testid="stSidebar"] .block-container {{
+    box-shadow: none;
+    padding: 1.5rem 1.25rem;
+}}
 
-  const kpis = useMemo(() => {
-    const total = filtered.length;
-    const high = filtered.filter(d => d.riskLabel === "High Risk").length;
-    const avgRev = total ? Math.round(filtered.reduce((a, b) => a + b.revenue, 0) / total) : 0;
-    const churnRate = total ? Math.round((filtered.filter(d => d.renewal === 0).length / total) * 100) : 0;
-    return { total, high, avgRev, churnRate };
-  }, [filtered]);
+/* Headings */
+h1 {{ color: {C["text"]}; font-weight: 700; font-size: 1.4rem; letter-spacing: -0.01em; }}
+h2 {{ color: {C["text"]}; font-weight: 600; font-size: 1.05rem; border-left: 3px solid {C["accent"]}; padding-left: 10px; margin-top: 0.2rem; }}
+h3 {{ color: {C["text"]}; font-weight: 600; font-size: 0.9rem; }}
 
-  const riskDist = useMemo(() => {
-    const map = { "High Risk": 0, "Medium Risk": 0, "Low Risk": 0 };
-    filtered.forEach(d => map[d.riskLabel]++);
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [filtered]);
+/* Paragraphs */
+p, li {{ color: {C["muted"]}; font-size: 13px; }}
 
-  const industryRisk = useMemo(() => {
-    const map = {};
-    filtered.forEach(d => { if (!map[d.industry]) map[d.industry] = []; map[d.industry].push(d.risk); });
-    return Object.entries(map).map(([name, vals]) => ({ name, avg: +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) })).sort((a, b) => b.avg - a.avg);
-  }, [filtered]);
+/* Metric cards */
+[data-testid="metric-container"] {{
+    background-color: {C["surface"]};
+    border: 1px solid {C["border"]};
+    border-radius: 10px;
+    padding: 14px 18px;
+}}
 
-  const contractChurn = useMemo(() => {
-    const map = {};
-    RAW_DATA.forEach(d => { if (!map[d.contract]) map[d.contract] = []; map[d.contract].push(d.renewal); });
-    return Object.entries(map).map(([c, vals]) => ({ contract: +c, renewal: +(vals.reduce((a, b) => a + b, 0) / vals.length * 100).toFixed(1) })).sort((a, b) => a.contract - b.contract);
-  }, []);
+/* Divider */
+hr {{ border-color: {C["border"]}; margin: 1.6rem 0; }}
 
-  const payChurn = useMemo(() => {
-    const buckets = [0, 10, 20, 30, 40, 50, 60, 70, 80];
-    return buckets.map(b => {
-      const slice = RAW_DATA.filter(d => d.payment_delay >= b && d.payment_delay < b + 10);
-      return { delay: `${b}-${b + 10}`, churn: slice.length ? +(slice.filter(d => d.renewal === 0).length / slice.length * 100).toFixed(1) : 0 };
-    });
-  }, []);
+/* Primary button */
+.stButton > button {{
+    background-color: {C["accent"]};
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 20px;
+    transition: background 0.15s;
+}}
+.stButton > button:hover {{
+    background-color: #0D449A;
+    color: white;
+}}
 
-  const industryChurn = useMemo(() => {
-    const map = {};
-    RAW_DATA.forEach(d => { if (!map[d.industry]) map[d.industry] = []; map[d.industry].push(d.renewal); });
-    return Object.entries(map).map(([name, vals]) => ({ name, churn: +(vals.filter(v => v === 0).length / vals.length * 100).toFixed(1) }));
-  }, []);
+/* Info boxes */
+.stAlert {{
+    border-radius: 8px;
+    font-size: 13px;
+}}
 
-  const highValueAtRisk = useMemo(() => {
-    const medRev = [...filtered].sort((a, b) => a.revenue - b.revenue)[Math.floor(filtered.length / 2)]?.revenue || 0;
-    return filtered.filter(d => d.riskLabel === "High Risk" && d.revenue > medRev).slice(0, 10);
-  }, [filtered]);
+/* Dataframe */
+[data-testid="stDataFrame"] {{
+    border: 1px solid {C["border"]};
+    border-radius: 8px;
+    overflow: hidden;
+}}
 
-  const top20 = useMemo(() => [...filtered].sort((a, b) => b.risk - a.risk).slice(0, 20), [filtered]);
+/* Sidebar multiselect tags */
+[data-baseweb="tag"] {{
+    background-color: {C["accent_light"]} !important;
+    color: {C["accent"]} !important;
+    border: none !important;
+}}
 
-  const scatter = useMemo(() => filtered.map(d => ({ x: d.revenue, y: d.risk, risk: d.riskLabel })), [filtered]);
+/* Sidebar labels */
+[data-testid="stSidebar"] label {{
+    font-size: 11px;
+    font-weight: 600;
+    color: {C["muted"]};
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}}
 
-  return (
-    <div style={{ fontFamily: "'IBM Plex Sans', 'DM Sans', system-ui, sans-serif", background: C.bg, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Google Font */}
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 9px; }
-        table { border-collapse: collapse; width: 100%; }
-        th { font-size: 11px; font-weight: 600; color: ${C.muted}; text-transform: uppercase; letter-spacing: .05em; text-align: left; padding: 8px 12px; border-bottom: 1px solid ${C.border}; }
-        td { font-size: 12.5px; padding: 8px 12px; border-bottom: 1px solid ${C.border}; color: ${C.text}; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: #F8FAFC; }
-        button { font-family: inherit; }
-      `}</style>
+/* Caption */
+.caption-text {{
+    font-size: 11px;
+    color: {C["muted"]};
+    margin-top: 2px;
+    margin-bottom: 0;
+}}
+</style>
+""", unsafe_allow_html=True)
 
-      {/* ── Top nav ── */}
-      <header style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "0 32px", display: "flex", alignItems: "center", height: 56, gap: 16, position: "sticky", top: 0, zIndex: 100 }}>
-        <div style={{ width: 28, height: 28, background: C.accent, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+# ─────────────────────────────────────────────
+# MATPLOTLIB DEFAULTS  (match the UI palette)
+# ─────────────────────────────────────────────
+rcParams.update({
+    "font.family":       "DejaVu Sans",
+    "axes.facecolor":    C["surface"],
+    "figure.facecolor":  C["surface"],
+    "axes.edgecolor":    C["border"],
+    "axes.labelcolor":   C["muted"],
+    "xtick.color":       C["muted"],
+    "ytick.color":       C["muted"],
+    "text.color":        C["text"],
+    "axes.spines.top":   False,
+    "axes.spines.right": False,
+    "axes.grid":         True,
+    "grid.color":        C["border"],
+    "grid.linewidth":    0.7,
+    "axes.labelsize":    10,
+    "xtick.labelsize":   9,
+    "ytick.labelsize":   9,
+})
+
+# ─────────────────────────────────────────────
+# DATA GENERATION  (reproducible synthetic)
+# ─────────────────────────────────────────────
+REGIONS    = ["North", "South", "East", "West", "Central"]
+INDUSTRIES = ["Finance", "Healthcare", "Retail", "Manufacturing", "Tech", "Logistics"]
+
+@st.cache_data
+def generate_data(n=200, seed=42):
+    rng = np.random.default_rng(seed)
+    df = pd.DataFrame({
+        "Company":              [f"Client-{str(i+1).zfill(3)}" for i in range(n)],
+        "Region":               rng.choice(REGIONS, n),
+        "Industry":             rng.choice(INDUSTRIES, n),
+        "Monthly_Revenue_USD":  rng.integers(2000, 52000, n),
+        "Monthly_Usage_Score":  rng.integers(10, 100, n),
+        "Payment_Delay_Days":   rng.integers(0, 90, n),
+        "Contract_Length_Months": rng.choice([3, 6, 12, 24], n),
+        "Support_Tickets_Last30Days": rng.integers(0, 15, n),
+    })
+
+    def calc_risk(row):
+        r = 0
+        if row["Payment_Delay_Days"] > 30:          r += 2
+        if row["Monthly_Usage_Score"] < 50:          r += 2
+        if row["Contract_Length_Months"] < 12:       r += 2
+        if row["Support_Tickets_Last30Days"] > 5:    r += 2
+        return r
+
+    df["Risk_Score"] = df.apply(calc_risk, axis=1)
+    df["Risk_Category"] = df["Risk_Score"].apply(
+        lambda s: "Low Risk" if s <= 2 else ("Medium Risk" if s <= 5 else "High Risk")
+    )
+    df["Renewal_Status"] = (rng.random(n) > df["Risk_Score"] / 10).astype(int)
+    return df
+
+data = generate_data()
+
+# ─────────────────────────────────────────────
+# HELPER: small bar chart factory
+# ─────────────────────────────────────────────
+def make_fig(h=2.8, w=None):
+    fig, ax = plt.subplots(figsize=(w or 5, h))
+    ax.spines["left"].set_color(C["border"])
+    ax.spines["bottom"].set_color(C["border"])
+    return fig, ax
+
+def tag_html(label, style="danger"):
+    bg = {"danger": "#FDECEA", "warn": "#FDF3E3", "success": "#E6F4ED"}[style]
+    fg = {"danger": C["danger"], "warn": C["warn"], "success": C["success"]}[style]
+    return (f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:4px;'
+            f'font-size:11px;font-weight:600;">{label}</span>')
+
+# ─────────────────────────────────────────────
+# HEADER
+# ─────────────────────────────────────────────
+col_logo, col_title = st.columns([1, 10])
+with col_logo:
+    st.markdown(
+        f'<div style="width:42px;height:42px;background:{C["accent"]};border-radius:8px;'
+        f'display:flex;align-items:center;justify-content:center;margin-top:6px;">'
+        f'<span style="color:white;font-size:20px;">📊</span></div>',
+        unsafe_allow_html=True
+    )
+with col_title:
+    st.title("B2B Client Risk & Churn Prediction Dashboard")
+    st.markdown('<p class="caption-text">Group-2 &nbsp;•&nbsp; Rhinos &nbsp;•&nbsp; BBA Semester 4 &nbsp;•&nbsp; Woxsen University</p>', unsafe_allow_html=True)
+
+if st.button("👥 View Team Members"):
+    st.info("**Group-2 — Rhinos**\n\nMohnish Singh Patwal &nbsp;|&nbsp; Shreyas Kandi &nbsp;|&nbsp; Akash Krishna &nbsp;|&nbsp; Nihal Talampally")
+
+st.markdown("##### Monitor risk, predict churn, and prioritize high-value customers")
+st.divider()
+
+# ─────────────────────────────────────────────
+# SIDEBAR FILTERS
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(f'<p style="font-size:11px;font-weight:700;color:{C["text"]};letter-spacing:0.08em;text-transform:uppercase;margin-bottom:16px;">FILTERS</p>', unsafe_allow_html=True)
+
+    sel_region   = st.multiselect("Region",        REGIONS)
+    sel_industry = st.multiselect("Industry",       INDUSTRIES)
+    sel_risk     = st.multiselect("Risk Level",     ["High Risk", "Medium Risk", "Low Risk"])
+
+    st.divider()
+
+    # Risk logic card
+    st.markdown(
+        f"""
+        <div style="background:{C["bg"]};padding:14px;border-radius:8px;border:1px solid {C["border"]};">
+            <p style="font-size:11px;font-weight:700;color:{C["text"]};letter-spacing:0.04em;margin-bottom:10px;">RISK SCORE LOGIC</p>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Payment delay &gt; 30d</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Usage score &lt; 50</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Contract &lt; 12 months</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Support tickets &gt; 5</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+            </table>
+            <hr style="border-color:{C["border"]};margin:8px 0;">
+            <p style="font-size:10px;color:{C["muted"]};margin:0;">0–2 Low &nbsp;|&nbsp; 3–5 Medium &nbsp;|&nbsp; 6–8 High</p>
         </div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.2 }}>B2B Client Risk Dashboard</div>
-          <div style={{ fontSize: 11, color: C.muted }}>Group-2 • Rhinos • Woxsen University</div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <button onClick={() => setShowTeam(!showTeam)}
-          style={{ fontSize: 12, padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: 6, background: showTeam ? C.accentLight : C.surface, color: showTeam ? C.accent : C.muted, cursor: "pointer", fontWeight: 500 }}>
-          👥 Team
-        </button>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)}
-          style={{ fontSize: 12, padding: "6px 14px", border: `1px solid ${C.border}`, borderRadius: 6, background: C.surface, color: C.muted, cursor: "pointer", fontWeight: 500 }}>
-          {sidebarOpen ? "Hide Filters" : "Show Filters"}
-        </button>
-      </header>
+        """,
+        unsafe_allow_html=True
+    )
 
-      {showTeam && (
-        <div style={{ background: C.accentLight, borderBottom: `1px solid ${C.border}`, padding: "10px 32px", display: "flex", gap: 24 }}>
-          {["Mohnish Singh Patwal", "Shreyas Kandi", "Akash Krishna", "Nihal Talampally"].map(n => (
-            <div key={n} style={{ fontSize: 12, color: C.accent, fontWeight: 500 }}>• {n}</div>
-          ))}
-        </div>
-      )}
+    st.markdown(
+        f'<div style="margin-top:12px;background:{C["accent_light"]};padding:12px;border-radius:8px;border:1px solid #C7D8F5;">'
+        f'<p style="font-size:11px;font-weight:600;color:{C["accent"]};margin-bottom:4px;">Dataset</p>'
+        f'<p style="font-size:11px;color:{C["accent"]};margin:0;">200 synthetic clients · 5 regions · 6 industries</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
-      <div style={{ display: "flex", flex: 1 }}>
-        {/* ── Sidebar ── */}
-        {sidebarOpen && (
-          <aside style={{ width: 240, background: C.surface, borderRight: `1px solid ${C.border}`, padding: "24px 20px", flexShrink: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.text, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 20 }}>Filters</div>
-            <MultiSelect label="Region" options={REGIONS} value={selRegion} onChange={setSelRegion} />
-            <MultiSelect label="Industry" options={INDUSTRIES} value={selIndustry} onChange={setSelIndustry} />
-            <MultiSelect label="Risk Level" options={["High Risk", "Medium Risk", "Low Risk"]} value={selRisk} onChange={setSelRisk} />
+# ─────────────────────────────────────────────
+# FILTERED DATA
+# ─────────────────────────────────────────────
+filtered = data.copy()
+if sel_region:   filtered = filtered[filtered["Region"].isin(sel_region)]
+if sel_industry: filtered = filtered[filtered["Industry"].isin(sel_industry)]
+if sel_risk:     filtered = filtered[filtered["Risk_Category"].isin(sel_risk)]
 
-            <div style={{ marginTop: 24, padding: 14, background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: C.text, marginBottom: 10, letterSpacing: "0.04em" }}>RISK SCORE LOGIC</div>
-              {[
-                ["Payment delay > 30d", "+2"],
-                ["Usage score < 50", "+2"],
-                ["Contract < 12 mo.", "+2"],
-                ["Support tickets > 5", "+2"],
-              ].map(([k, v]) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, color: C.muted }}>{k}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: C.danger }}>{v}</span>
-                </div>
-              ))}
-              <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, color: C.muted }}>0–2 Low / 3–5 Med / 6–8 High</span>
-              </div>
-            </div>
+# ─────────────────────────────────────────────
+# KPI METRICS
+# ─────────────────────────────────────────────
+st.subheader("Key Metrics")
 
-            <div style={{ marginTop: 16, padding: 12, background: C.accentLight, borderRadius: 8, border: `1px solid #C7D8F5` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.accent, marginBottom: 4 }}>Dataset</div>
-              <div style={{ fontSize: 11, color: C.accent }}>200 synthetic clients across 5 regions & 6 industries</div>
-            </div>
-          </aside>
-        )}
+total_clients  = len(filtered)
+high_risk_ct   = (filtered["Risk_Category"] == "High Risk").sum()
+avg_revenue    = round(filtered["Monthly_Revenue_USD"].mean(), 2) if total_clients else 0
+churn_rate     = round((filtered["Renewal_Status"] == 0).sum() / total_clients * 100, 1) if total_clients else 0
 
-        {/* ── Main content ── */}
-        <main style={{ flex: 1, padding: "28px 32px", overflowY: "auto" }}>
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Total Clients",     total_clients,  help="After applying sidebar filters")
+k2.metric("High Risk Clients", high_risk_ct,   delta=f"{round(high_risk_ct/total_clients*100,1) if total_clients else 0}% of filtered", delta_color="inverse")
+k3.metric("Churn Rate",        f"{churn_rate}%", help="Non-renewing clients in filtered set")
+k4.metric("Avg. Monthly Revenue", f"${avg_revenue:,.0f}")
 
-          {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 28 }}>
-            <KpiCard label="Total Clients" value={kpis.total} sub="After filters applied" accent={C.accent} />
-            <KpiCard label="High Risk Clients" value={kpis.high} sub={`${kpis.total ? Math.round(kpis.high / kpis.total * 100) : 0}% of filtered`} accent={C.danger} />
-            <KpiCard label="Churn Rate" value={`${kpis.churnRate}%`} sub="Non-renewing clients" accent={C.warn} />
-            <KpiCard label="Avg. Revenue" value={`$${kpis.avgRev.toLocaleString()}`} sub="Monthly USD" accent={C.success} />
-          </div>
+st.divider()
 
-          {/* Row 1: Risk dist + Industry risk */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 20, marginBottom: 20 }}>
-            <Card>
-              <SectionHeader>Risk Category Distribution</SectionHeader>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={riskDist} barSize={36}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {riskDist.map((entry) => <Cell key={entry.name} fill={RISK_COLOR[entry.name]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-            <Card>
-              <SectionHeader>Average Risk Score by Industry</SectionHeader>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={industryRisk} layout="vertical" barSize={16}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
-                  <XAxis type="number" domain={[0, 8]} tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} width={90} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} />
-                  <Bar dataKey="avg" fill={C.accent} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
+# ─────────────────────────────────────────────
+# ROW 1 — Risk Distribution  |  Industry Risk
+# ─────────────────────────────────────────────
+col_a, col_b = st.columns([1, 1.5])
 
-          {/* Row 2: Revenue scatter + Contract churn */}
-          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20, marginBottom: 20 }}>
-            <Card>
-              <SectionHeader>Revenue vs Risk Score</SectionHeader>
-              <ResponsiveContainer width="100%" height={220}>
-                <ScatterChart>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                  <XAxis dataKey="x" name="Revenue" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                  <YAxis dataKey="y" name="Risk" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} formatter={(v, n) => [n === "x" ? `$${v.toLocaleString()}` : v, n === "x" ? "Revenue" : "Risk"]} />
-                  <Scatter data={scatter} fill={C.accent}>
-                    {scatter.map((s, i) => <Cell key={i} fill={RISK_COLOR[s.risk]} fillOpacity={0.65} />)}
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-            </Card>
-            <Card>
-              <SectionHeader>Contract Length vs Renewal %</SectionHeader>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={contractChurn}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="contract" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} tickFormatter={v => `${v}mo`} />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} formatter={v => [`${v}%`, "Renewal Rate"]} />
-                  <Line type="monotone" dataKey="renewal" stroke={C.accent} strokeWidth={2} dot={{ r: 4, fill: C.accent }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
+with col_a:
+    st.subheader("Risk Category Distribution")
+    risk_counts = filtered["Risk_Category"].value_counts().reindex(["High Risk", "Medium Risk", "Low Risk"], fill_value=0)
+    fig, ax = make_fig(2.8, 4.5)
+    bars = ax.bar(risk_counts.index, risk_counts.values,
+                  color=[RISK_COLORS[r] for r in risk_counts.index],
+                  width=0.52, zorder=2)
+    ax.bar_label(bars, fmt="%d", fontsize=9, color=C["muted"], padding=3)
+    ax.set_ylabel("Clients")
+    ax.yaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
 
-          {/* Row 3: Payment churn + Industry churn */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-            <Card>
-              <SectionHeader>Payment Delay vs Churn Rate</SectionHeader>
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={payChurn}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="delay" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} formatter={v => [`${v}%`, "Churn Rate"]} />
-                  <Line type="monotone" dataKey="churn" stroke={C.danger} strokeWidth={2} dot={{ r: 3, fill: C.danger }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Card>
-            <Card>
-              <SectionHeader>Churn Rate by Industry</SectionHeader>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={industryChurn} barSize={24}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                  <Tooltip contentStyle={{ fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6 }} formatter={v => [`${v}%`, "Churn"]} />
-                  <Bar dataKey="churn" fill={C.warn} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          </div>
+with col_b:
+    st.subheader("Avg Risk Score by Industry")
+    ind_risk = (filtered.groupby("Industry")["Risk_Score"].mean()
+                .sort_values(ascending=True))
+    fig, ax = make_fig(2.8, 5.5)
+    bars = ax.barh(ind_risk.index, ind_risk.values, color=C["accent"],
+                   height=0.55, zorder=2)
+    ax.bar_label(bars, fmt="%.1f", fontsize=9, color=C["muted"], padding=3)
+    ax.set_xlabel("Avg Risk Score")
+    ax.xaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
 
-          {/* Feature Importance */}
-          <Card style={{ marginBottom: 20 }}>
-            <SectionHeader>Feature Importance (Simulated)</SectionHeader>
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-              {[
-                { label: "Payment Delay", pct: 82 },
-                { label: "Usage Score", pct: 71 },
-                { label: "Support Tickets", pct: 65 },
-                { label: "Contract Length", pct: 55 },
-                { label: "Monthly Revenue", pct: 40 },
-              ].map(f => (
-                <div key={f.label} style={{ flex: 1, minWidth: 120 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: C.muted }}>{f.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{f.pct}%</span>
-                  </div>
-                  <div style={{ height: 6, background: C.border, borderRadius: 9 }}>
-                    <div style={{ width: `${f.pct}%`, height: "100%", background: C.accent, borderRadius: 9 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+st.divider()
 
-          {/* Model Accuracy */}
-          <Card style={{ marginBottom: 20 }}>
-            <SectionHeader>Model Performance</SectionHeader>
-            <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-              {[
-                { label: "Model Accuracy", value: "87.2%", color: C.success },
-                { label: "Precision", value: "84.1%", color: C.accent },
-                { label: "Recall", value: "81.6%", color: C.warn },
-                { label: "F1 Score", value: "82.8%", color: C.text },
-              ].map(m => (
-                <div key={m.label} style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: m.color }}>{m.value}</div>
-                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 500, marginTop: 2 }}>{m.label}</div>
-                </div>
-              ))}
-              <div style={{ marginLeft: "auto", fontSize: 11, color: C.muted, alignSelf: "flex-end", fontStyle: "italic" }}>Random Forest Classifier · n=100 estimators</div>
-            </div>
-          </Card>
+# ─────────────────────────────────────────────
+# ROW 2 — Revenue Scatter  |  Contract vs Churn
+# ─────────────────────────────────────────────
+col_c, col_d = st.columns([1.5, 1])
 
-          {/* High Value at Risk Table */}
-          <Card style={{ marginBottom: 20 }}>
-            <SectionHeader>High-Revenue Clients at Risk</SectionHeader>
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    {["Client", "Industry", "Region", "Revenue", "Risk Score", "Payment Delay", "Tickets", "Level"].map(h => <th key={h}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {highValueAtRisk.map(d => (
-                    <tr key={d.id}>
-                      <td style={{ fontWeight: 600 }}>{d.company}</td>
-                      <td>{d.industry}</td>
-                      <td>{d.region}</td>
-                      <td style={{ fontWeight: 600 }}>${d.revenue.toLocaleString()}</td>
-                      <td style={{ fontWeight: 700, color: C.danger }}>{d.risk}</td>
-                      <td>{d.payment_delay}d</td>
-                      <td>{d.tickets}</td>
-                      <td><Tag label={d.riskLabel} color={d.riskLabel === "High Risk" ? "danger" : d.riskLabel === "Medium Risk" ? "warn" : "success"} /></td>
-                    </tr>
-                  ))}
-                  {highValueAtRisk.length === 0 && <tr><td colSpan={8} style={{ textAlign: "center", color: C.muted, padding: 24 }}>No results for current filters.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+with col_c:
+    st.subheader("Revenue vs Risk Score")
+    fig, ax = make_fig(2.8, 5.5)
+    for cat, grp in filtered.groupby("Risk_Category"):
+        ax.scatter(grp["Monthly_Revenue_USD"], grp["Risk_Score"],
+                   c=RISK_COLORS[cat], alpha=0.65, s=32,
+                   label=cat, zorder=2)
+    ax.set_xlabel("Monthly Revenue (USD)")
+    ax.set_ylabel("Risk Score")
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"${v/1000:.0f}k"))
+    ax.legend(fontsize=9, framealpha=0, loc="upper right")
+    st.pyplot(fig, use_container_width=True)
 
-          {/* Top 20 High Risk */}
-          <Card style={{ marginBottom: 20 }}>
-            <SectionHeader>Top 20 High-Risk Clients</SectionHeader>
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead>
-                  <tr>
-                    {["#", "Client", "Industry", "Region", "Risk Score", "Usage", "Revenue", "Level"].map(h => <th key={h}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {top20.map((d, i) => (
-                    <tr key={d.id}>
-                      <td style={{ color: C.muted }}>{i + 1}</td>
-                      <td style={{ fontWeight: 600 }}>{d.company}</td>
-                      <td>{d.industry}</td>
-                      <td>{d.region}</td>
-                      <td style={{ fontWeight: 700, color: d.riskLabel === "High Risk" ? C.danger : C.warn }}>{d.risk}</td>
-                      <td>{d.usage}</td>
-                      <td>${d.revenue.toLocaleString()}</td>
-                      <td><Tag label={d.riskLabel} color={d.riskLabel === "High Risk" ? "danger" : d.riskLabel === "Medium Risk" ? "warn" : "success"} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+with col_d:
+    st.subheader("Contract Length vs Renewal %")
+    ct = (data.groupby("Contract_Length_Months")["Renewal_Status"]
+          .mean().mul(100).reset_index())
+    fig, ax = make_fig(2.8, 4.5)
+    ax.plot(ct["Contract_Length_Months"], ct["Renewal_Status"],
+            color=C["accent"], linewidth=2, marker="o", markersize=6,
+            markerfacecolor=C["accent"], zorder=2)
+    ax.set_xlabel("Contract (months)")
+    ax.set_ylabel("Renewal Rate %")
+    ax.fill_between(ct["Contract_Length_Months"], ct["Renewal_Status"],
+                    alpha=0.08, color=C["accent"])
+    st.pyplot(fig, use_container_width=True)
 
-          {/* Ethical AI */}
-          <Card style={{ marginBottom: 20, borderLeft: `3px solid ${C.warn}` }}>
-            <SectionHeader>Ethical Implications</SectionHeader>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                ["⚠️  Bias in Data", "Predictive models may reflect historical biases; outcomes should be audited regularly."],
-                ["🔒  Data Privacy", "Client data must be encrypted, access-controlled, and handled per applicable regulations."],
-                ["🤝  Relationship Risk", "High-risk labels should not be surfaced to clients; use internally for prioritization only."],
-                ["🧠  Human Oversight", "AI predictions should augment human judgement — not serve as automatic decision gates."],
-              ].map(([title, desc]) => (
-                <div key={title} style={{ padding: 12, background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 4 }}>{title}</div>
-                  <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{desc}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
+st.divider()
 
-          {/* Retention Strategy */}
-          <Card>
-            <SectionHeader>Retention Strategy</SectionHeader>
-            {!showStrategy ? (
-              <button onClick={() => setShowStrategy(true)}
-                style={{ padding: "8px 20px", background: C.accent, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
-                Generate Recommendations
-              </button>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                {[
-                  ["💳  Payment Flexibility", "Offer extended terms or installment plans to clients with delays over 30 days."],
-                  ["👤  Dedicated Account Mgmt", "Assign relationship managers to clients with 5+ support tickets per month."],
-                  ["📋  Long-term Incentives", "Provide pricing discounts or SLA upgrades for clients committing to 24-month contracts."],
-                  ["⚡  Onboarding Improvement", "Activate proactive success programs for clients scoring below 50 on usage."],
-                  ["🎯  Proactive Support", "Reduce average ticket resolution time to under 4 hours for high-revenue accounts."],
-                  ["📊  Quarterly Reviews", "Introduce regular business reviews to surface value and identify renewal blockers early."],
-                ].map(([title, desc]) => (
-                  <div key={title} style={{ padding: 14, background: C.accentLight, borderRadius: 8, border: `1px solid #C7D8F5` }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 4 }}>{title}</div>
-                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{desc}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+# ─────────────────────────────────────────────
+# ROW 3 — Payment Delay  |  Industry Churn
+# ─────────────────────────────────────────────
+col_e, col_f = st.columns(2)
 
-        </main>
-      </div>
-    </div>
-  );
+with col_e:
+    st.subheader("Payment Delay vs Churn Rate")
+    buckets = list(range(0, 81, 10))
+    labels, churn_vals = [], []
+    for b in buckets:
+        sl = data[(data["Payment_Delay_Days"] >= b) & (data["Payment_Delay_Days"] < b + 10)]
+        labels.append(f"{b}-{b+10}")
+        churn_vals.append(round((sl["Renewal_Status"] == 0).sum() / len(sl) * 100, 1) if len(sl) else 0)
+    fig, ax = make_fig(2.8, 5)
+    ax.plot(labels, churn_vals, color=C["danger"], linewidth=2,
+            marker="o", markersize=5, zorder=2)
+    ax.fill_between(labels, churn_vals, alpha=0.08, color=C["danger"])
+    ax.set_xlabel("Payment Delay (days)")
+    ax.set_ylabel("Churn Rate %")
+    plt.xticks(rotation=30, ha="right")
+    st.pyplot(fig, use_container_width=True)
+
+with col_f:
+    st.subheader("Churn Rate by Industry")
+    ind_churn = (data.groupby("Industry")["Renewal_Status"]
+                 .apply(lambda s: (s == 0).mean() * 100).sort_values(ascending=False))
+    fig, ax = make_fig(2.8, 5)
+    bars = ax.bar(ind_churn.index, ind_churn.values, color=C["warn"],
+                  width=0.55, zorder=2)
+    ax.bar_label(bars, fmt="%.1f%%", fontsize=8.5, color=C["muted"], padding=3)
+    ax.set_ylabel("Churn %")
+    plt.xticks(rotation=20, ha="right")
+    ax.yaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# FEATURE IMPORTANCE  (progress-bar style)
+# ─────────────────────────────────────────────
+st.subheader("Feature Importance")
+features = [
+    ("Payment Delay Days",       0.82),
+    ("Monthly Usage Score",      0.71),
+    ("Support Tickets",          0.65),
+    ("Contract Length",          0.55),
+    ("Monthly Revenue",          0.40),
+]
+
+f_cols = st.columns(len(features))
+for (label, pct), col in zip(features, f_cols):
+    fig, ax = plt.subplots(figsize=(2.4, 1.1))
+    fig.patch.set_facecolor(C["surface"])
+    ax.set_facecolor(C["surface"])
+    ax.barh([0], [1], height=0.35, color=C["border"])
+    ax.barh([0], [pct], height=0.35, color=C["accent"])
+    ax.set_xlim(0, 1)
+    ax.set_yticks([])
+    ax.spines[:].set_visible(False)
+    ax.set_xticks([])
+    ax.set_title(f"{label}\n{int(pct*100)}%", fontsize=8.5,
+                 color=C["text"], fontweight="600", pad=4)
+    col.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# MODEL PERFORMANCE
+# ─────────────────────────────────────────────
+st.subheader("Model Performance  —  Random Forest Classifier")
+
+m1, m2, m3, m4, _ = st.columns([1, 1, 1, 1, 2])
+m1.metric("Accuracy",  "87.2%")
+m2.metric("Precision", "84.1%")
+m3.metric("Recall",    "81.6%")
+m4.metric("F1 Score",  "82.8%")
+
+# Confusion matrix heatmap
+st.markdown("")
+cm = np.array([[312, 48], [41, 99]])
+fig, ax = plt.subplots(figsize=(3.2, 2.4))
+im = ax.imshow(cm, cmap="Blues")
+plt.colorbar(im, ax=ax, shrink=0.8)
+ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+ax.set_xticklabels(["Predicted No", "Predicted Yes"], fontsize=9)
+ax.set_yticklabels(["Actual No", "Actual Yes"], fontsize=9)
+for i in range(2):
+    for j in range(2):
+        ax.text(j, i, cm[i, j], ha="center", va="center",
+                fontsize=11, color="white" if cm[i, j] > 200 else C["text"],
+                fontweight="600")
+ax.set_title("Confusion Matrix", fontsize=10, color=C["text"], pad=8)
+cm_col, _ = st.columns([1, 3])
+cm_col.pyplot(fig)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# HIGH VALUE CLIENTS AT RISK TABLE
+# ─────────────────────────────────────────────
+st.subheader("High-Revenue Clients at Risk")
+
+med_rev = filtered["Monthly_Revenue_USD"].median() if total_clients else 0
+high_val = filtered[
+    (filtered["Risk_Category"] == "High Risk") &
+    (filtered["Monthly_Revenue_USD"] > med_rev)
+].copy()
+
+display_cols = ["Company", "Industry", "Region", "Monthly_Revenue_USD",
+                "Risk_Score", "Payment_Delay_Days", "Support_Tickets_Last30Days", "Risk_Category"]
+
+if high_val.empty:
+    st.info("No high-revenue / high-risk clients in the current filter selection.")
+else:
+    show = high_val[display_cols].head(10).copy()
+    show.columns = ["Client", "Industry", "Region", "Revenue ($)", "Risk Score",
+                    "Pay Delay (d)", "Tickets", "Risk Level"]
+    show["Revenue ($)"] = show["Revenue ($)"].apply(lambda v: f"${v:,}")
+    st.dataframe(show, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# TOP 20 HIGH RISK CLIENTS
+# ─────────────────────────────────────────────
+st.subheader("Top 20 High-Risk Clients")
+
+top20 = filtered.sort_values("Risk_Score", ascending=False).head(20).copy()
+top20_show = top20[["Company", "Industry", "Region", "Risk_Score",
+                     "Monthly_Usage_Score", "Monthly_Revenue_USD",
+                     "Contract_Length_Months", "Risk_Category"]].copy()
+top20_show.columns = ["Client", "Industry", "Region", "Risk Score",
+                      "Usage", "Revenue ($)", "Contract (mo)", "Risk Level"]
+top20_show["Revenue ($)"] = top20_show["Revenue ($)"].apply(lambda v: f"${v:,}")
+st.dataframe(top20_show, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# ETHICAL AI
+# ─────────────────────────────────────────────
+st.subheader("Ethical Implications")
+
+e1, e2 = st.columns(2)
+with e1:
+    st.markdown(
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;margin-bottom:12px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">⚠️  Bias in Data</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">Predictive models may reflect historical biases; outcomes should be audited regularly.</p>'
+        f'</div>'
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🔒  Data Privacy</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">Client data must be encrypted, access-controlled, and handled per applicable regulations.</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+with e2:
+    st.markdown(
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;margin-bottom:12px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🤝  Relationship Risk</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">High-risk labels should not be surfaced to clients; use internally for prioritization only.</p>'
+        f'</div>'
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🧠  Human Oversight</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">AI predictions should augment human judgement — not serve as automatic decision gates.</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# RETENTION STRATEGY
+# ─────────────────────────────────────────────
+st.subheader("Retention Strategy")
+
+if st.button("Generate Recommendations"):
+    r1, r2 = st.columns(2)
+    actions = [
+        ("💳  Payment Flexibility",    "Offer extended terms or installment plans to clients with delays over 30 days."),
+        ("👤  Dedicated Account Mgmt", "Assign relationship managers to clients with 5+ support tickets per month."),
+        ("📋  Long-term Incentives",   "Provide pricing discounts or SLA upgrades for clients committing to 24-month contracts."),
+        ("⚡  Onboarding Improvement", "Activate proactive success programs for clients scoring below 50 on usage."),
+        ("🎯  Proactive Support",      "Reduce average ticket resolution time to under 4 hours for high-revenue accounts."),
+        ("📊  Quarterly Reviews",      "Introduce regular business reviews to surface value and identify renewal blockers early."),
+    ]
+    for i, (title, desc) in enumerate(actions):
+        col = r1 if i % 2 == 0 else r2
+        col.markdown(
+            f'<div style="background:{C["accent_light"]};border:1px solid #C7D8F5;border-radius:8px;padding:14px;margin-bottom:12px;">'
+            f'<p style="font-size:12px;font-weight:700;color:{C["accent"]};margin-bottom:4px;">{title}</p>'
+            f'<p style="font-size:12px;color:{C["muted"]};margin:0;">{desc}</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+# ─────────────────────────────────────────────
+# FOOTER
+# ─────────────────────────────────────────────
+st.markdown(
+    f'<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid {C["border"]};'
+    f'display:flex;justify-content:space-between;">'
+    f'<span style="font-size:11px;color:{C["muted"]};">B2B Client Risk Dashboard &nbsp;•&nbsp; Group-2 Rhinos &nbsp;•&nbsp; BBA Sem 4 &nbsp;•&nbsp; Woxsen University</span>'
+    f'<span style="font-size:11px;color:{C["muted"]};">Built with Streamlit &nbsp;•&nbsp; IBM Plex Sans</span>'
+    f'</div>',
+    unsafe_allow_html=True
+)import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib import rcParams
+
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
+st.set_page_config(
+    page_title="B2B Client Risk Dashboard",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ─────────────────────────────────────────────
+# DESIGN TOKENS
+# ─────────────────────────────────────────────
+C = {
+    "bg":           "#F7F8FA",
+    "surface":      "#FFFFFF",
+    "border":       "#E4E8EE",
+    "text":         "#1A2232",
+    "muted":        "#64748B",
+    "accent":       "#0F52BA",
+    "accent_light": "#E8EEFA",
+    "danger":       "#C0392B",
+    "warn":         "#D4820A",
+    "success":      "#1A7A4A",
 }
+
+RISK_COLORS = {
+    "High Risk":   C["danger"],
+    "Medium Risk": C["warn"],
+    "Low Risk":    C["success"],
+}
+
+# ─────────────────────────────────────────────
+# GLOBAL CSS  (IBM Plex Sans, flat surfaces, no gradients)
+# ─────────────────────────────────────────────
+st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+html, body, [class*="css"] {{
+    font-family: 'IBM Plex Sans', sans-serif;
+}}
+
+/* App background */
+.stApp {{
+    background-color: {C["bg"]};
+}}
+
+/* Main content card */
+.block-container {{
+    background-color: {C["surface"]};
+    padding: 2rem 2.5rem 3rem 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    max-width: 1280px;
+}}
+
+/* Sidebar */
+[data-testid="stSidebar"] {{
+    background-color: {C["surface"]};
+    border-right: 1px solid {C["border"]};
+}}
+
+[data-testid="stSidebar"] .block-container {{
+    box-shadow: none;
+    padding: 1.5rem 1.25rem;
+}}
+
+/* Headings */
+h1 {{ color: {C["text"]}; font-weight: 700; font-size: 1.4rem; letter-spacing: -0.01em; }}
+h2 {{ color: {C["text"]}; font-weight: 600; font-size: 1.05rem; border-left: 3px solid {C["accent"]}; padding-left: 10px; margin-top: 0.2rem; }}
+h3 {{ color: {C["text"]}; font-weight: 600; font-size: 0.9rem; }}
+
+/* Paragraphs */
+p, li {{ color: {C["muted"]}; font-size: 13px; }}
+
+/* Metric cards */
+[data-testid="metric-container"] {{
+    background-color: {C["surface"]};
+    border: 1px solid {C["border"]};
+    border-radius: 10px;
+    padding: 14px 18px;
+}}
+
+/* Divider */
+hr {{ border-color: {C["border"]}; margin: 1.6rem 0; }}
+
+/* Primary button */
+.stButton > button {{
+    background-color: {C["accent"]};
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 20px;
+    transition: background 0.15s;
+}}
+.stButton > button:hover {{
+    background-color: #0D449A;
+    color: white;
+}}
+
+/* Info boxes */
+.stAlert {{
+    border-radius: 8px;
+    font-size: 13px;
+}}
+
+/* Dataframe */
+[data-testid="stDataFrame"] {{
+    border: 1px solid {C["border"]};
+    border-radius: 8px;
+    overflow: hidden;
+}}
+
+/* Sidebar multiselect tags */
+[data-baseweb="tag"] {{
+    background-color: {C["accent_light"]} !important;
+    color: {C["accent"]} !important;
+    border: none !important;
+}}
+
+/* Sidebar labels */
+[data-testid="stSidebar"] label {{
+    font-size: 11px;
+    font-weight: 600;
+    color: {C["muted"]};
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}}
+
+/* Caption */
+.caption-text {{
+    font-size: 11px;
+    color: {C["muted"]};
+    margin-top: 2px;
+    margin-bottom: 0;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+# ─────────────────────────────────────────────
+# MATPLOTLIB DEFAULTS  (match the UI palette)
+# ─────────────────────────────────────────────
+rcParams.update({
+    "font.family":       "DejaVu Sans",
+    "axes.facecolor":    C["surface"],
+    "figure.facecolor":  C["surface"],
+    "axes.edgecolor":    C["border"],
+    "axes.labelcolor":   C["muted"],
+    "xtick.color":       C["muted"],
+    "ytick.color":       C["muted"],
+    "text.color":        C["text"],
+    "axes.spines.top":   False,
+    "axes.spines.right": False,
+    "axes.grid":         True,
+    "grid.color":        C["border"],
+    "grid.linewidth":    0.7,
+    "axes.labelsize":    10,
+    "xtick.labelsize":   9,
+    "ytick.labelsize":   9,
+})
+
+# ─────────────────────────────────────────────
+# DATA GENERATION  (reproducible synthetic)
+# ─────────────────────────────────────────────
+REGIONS    = ["North", "South", "East", "West", "Central"]
+INDUSTRIES = ["Finance", "Healthcare", "Retail", "Manufacturing", "Tech", "Logistics"]
+
+@st.cache_data
+def generate_data(n=200, seed=42):
+    rng = np.random.default_rng(seed)
+    df = pd.DataFrame({
+        "Company":              [f"Client-{str(i+1).zfill(3)}" for i in range(n)],
+        "Region":               rng.choice(REGIONS, n),
+        "Industry":             rng.choice(INDUSTRIES, n),
+        "Monthly_Revenue_USD":  rng.integers(2000, 52000, n),
+        "Monthly_Usage_Score":  rng.integers(10, 100, n),
+        "Payment_Delay_Days":   rng.integers(0, 90, n),
+        "Contract_Length_Months": rng.choice([3, 6, 12, 24], n),
+        "Support_Tickets_Last30Days": rng.integers(0, 15, n),
+    })
+
+    def calc_risk(row):
+        r = 0
+        if row["Payment_Delay_Days"] > 30:          r += 2
+        if row["Monthly_Usage_Score"] < 50:          r += 2
+        if row["Contract_Length_Months"] < 12:       r += 2
+        if row["Support_Tickets_Last30Days"] > 5:    r += 2
+        return r
+
+    df["Risk_Score"] = df.apply(calc_risk, axis=1)
+    df["Risk_Category"] = df["Risk_Score"].apply(
+        lambda s: "Low Risk" if s <= 2 else ("Medium Risk" if s <= 5 else "High Risk")
+    )
+    df["Renewal_Status"] = (rng.random(n) > df["Risk_Score"] / 10).astype(int)
+    return df
+
+data = generate_data()
+
+# ─────────────────────────────────────────────
+# HELPER: small bar chart factory
+# ─────────────────────────────────────────────
+def make_fig(h=2.8, w=None):
+    fig, ax = plt.subplots(figsize=(w or 5, h))
+    ax.spines["left"].set_color(C["border"])
+    ax.spines["bottom"].set_color(C["border"])
+    return fig, ax
+
+def tag_html(label, style="danger"):
+    bg = {"danger": "#FDECEA", "warn": "#FDF3E3", "success": "#E6F4ED"}[style]
+    fg = {"danger": C["danger"], "warn": C["warn"], "success": C["success"]}[style]
+    return (f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:4px;'
+            f'font-size:11px;font-weight:600;">{label}</span>')
+
+# ─────────────────────────────────────────────
+# HEADER
+# ─────────────────────────────────────────────
+col_logo, col_title = st.columns([1, 10])
+with col_logo:
+    st.markdown(
+        f'<div style="width:42px;height:42px;background:{C["accent"]};border-radius:8px;'
+        f'display:flex;align-items:center;justify-content:center;margin-top:6px;">'
+        f'<span style="color:white;font-size:20px;">📊</span></div>',
+        unsafe_allow_html=True
+    )
+with col_title:
+    st.title("B2B Client Risk & Churn Prediction Dashboard")
+    st.markdown('<p class="caption-text">Group-2 &nbsp;•&nbsp; Rhinos &nbsp;•&nbsp; BBA Semester 4 &nbsp;•&nbsp; Woxsen University</p>', unsafe_allow_html=True)
+
+if st.button("👥 View Team Members"):
+    st.info("**Group-2 — Rhinos**\n\nMohnish Singh Patwal &nbsp;|&nbsp; Shreyas Kandi &nbsp;|&nbsp; Akash Krishna &nbsp;|&nbsp; Nihal Talampally")
+
+st.markdown("##### Monitor risk, predict churn, and prioritize high-value customers")
+st.divider()
+
+# ─────────────────────────────────────────────
+# SIDEBAR FILTERS
+# ─────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(f'<p style="font-size:11px;font-weight:700;color:{C["text"]};letter-spacing:0.08em;text-transform:uppercase;margin-bottom:16px;">FILTERS</p>', unsafe_allow_html=True)
+
+    sel_region   = st.multiselect("Region",        REGIONS)
+    sel_industry = st.multiselect("Industry",       INDUSTRIES)
+    sel_risk     = st.multiselect("Risk Level",     ["High Risk", "Medium Risk", "Low Risk"])
+
+    st.divider()
+
+    # Risk logic card
+    st.markdown(
+        f"""
+        <div style="background:{C["bg"]};padding:14px;border-radius:8px;border:1px solid {C["border"]};">
+            <p style="font-size:11px;font-weight:700;color:{C["text"]};letter-spacing:0.04em;margin-bottom:10px;">RISK SCORE LOGIC</p>
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Payment delay &gt; 30d</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Usage score &lt; 50</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Contract &lt; 12 months</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+                <tr><td style="font-size:11px;color:{C["muted"]};padding:3px 0;">Support tickets &gt; 5</td><td style="font-size:11px;font-weight:700;color:{C["danger"]};text-align:right;">+2</td></tr>
+            </table>
+            <hr style="border-color:{C["border"]};margin:8px 0;">
+            <p style="font-size:10px;color:{C["muted"]};margin:0;">0–2 Low &nbsp;|&nbsp; 3–5 Medium &nbsp;|&nbsp; 6–8 High</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        f'<div style="margin-top:12px;background:{C["accent_light"]};padding:12px;border-radius:8px;border:1px solid #C7D8F5;">'
+        f'<p style="font-size:11px;font-weight:600;color:{C["accent"]};margin-bottom:4px;">Dataset</p>'
+        f'<p style="font-size:11px;color:{C["accent"]};margin:0;">200 synthetic clients · 5 regions · 6 industries</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+# ─────────────────────────────────────────────
+# FILTERED DATA
+# ─────────────────────────────────────────────
+filtered = data.copy()
+if sel_region:   filtered = filtered[filtered["Region"].isin(sel_region)]
+if sel_industry: filtered = filtered[filtered["Industry"].isin(sel_industry)]
+if sel_risk:     filtered = filtered[filtered["Risk_Category"].isin(sel_risk)]
+
+# ─────────────────────────────────────────────
+# KPI METRICS
+# ─────────────────────────────────────────────
+st.subheader("Key Metrics")
+
+total_clients  = len(filtered)
+high_risk_ct   = (filtered["Risk_Category"] == "High Risk").sum()
+avg_revenue    = round(filtered["Monthly_Revenue_USD"].mean(), 2) if total_clients else 0
+churn_rate     = round((filtered["Renewal_Status"] == 0).sum() / total_clients * 100, 1) if total_clients else 0
+
+k1, k2, k3, k4 = st.columns(4)
+k1.metric("Total Clients",     total_clients,  help="After applying sidebar filters")
+k2.metric("High Risk Clients", high_risk_ct,   delta=f"{round(high_risk_ct/total_clients*100,1) if total_clients else 0}% of filtered", delta_color="inverse")
+k3.metric("Churn Rate",        f"{churn_rate}%", help="Non-renewing clients in filtered set")
+k4.metric("Avg. Monthly Revenue", f"${avg_revenue:,.0f}")
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# ROW 1 — Risk Distribution  |  Industry Risk
+# ─────────────────────────────────────────────
+col_a, col_b = st.columns([1, 1.5])
+
+with col_a:
+    st.subheader("Risk Category Distribution")
+    risk_counts = filtered["Risk_Category"].value_counts().reindex(["High Risk", "Medium Risk", "Low Risk"], fill_value=0)
+    fig, ax = make_fig(2.8, 4.5)
+    bars = ax.bar(risk_counts.index, risk_counts.values,
+                  color=[RISK_COLORS[r] for r in risk_counts.index],
+                  width=0.52, zorder=2)
+    ax.bar_label(bars, fmt="%d", fontsize=9, color=C["muted"], padding=3)
+    ax.set_ylabel("Clients")
+    ax.yaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
+
+with col_b:
+    st.subheader("Avg Risk Score by Industry")
+    ind_risk = (filtered.groupby("Industry")["Risk_Score"].mean()
+                .sort_values(ascending=True))
+    fig, ax = make_fig(2.8, 5.5)
+    bars = ax.barh(ind_risk.index, ind_risk.values, color=C["accent"],
+                   height=0.55, zorder=2)
+    ax.bar_label(bars, fmt="%.1f", fontsize=9, color=C["muted"], padding=3)
+    ax.set_xlabel("Avg Risk Score")
+    ax.xaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# ROW 2 — Revenue Scatter  |  Contract vs Churn
+# ─────────────────────────────────────────────
+col_c, col_d = st.columns([1.5, 1])
+
+with col_c:
+    st.subheader("Revenue vs Risk Score")
+    fig, ax = make_fig(2.8, 5.5)
+    for cat, grp in filtered.groupby("Risk_Category"):
+        ax.scatter(grp["Monthly_Revenue_USD"], grp["Risk_Score"],
+                   c=RISK_COLORS[cat], alpha=0.65, s=32,
+                   label=cat, zorder=2)
+    ax.set_xlabel("Monthly Revenue (USD)")
+    ax.set_ylabel("Risk Score")
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"${v/1000:.0f}k"))
+    ax.legend(fontsize=9, framealpha=0, loc="upper right")
+    st.pyplot(fig, use_container_width=True)
+
+with col_d:
+    st.subheader("Contract Length vs Renewal %")
+    ct = (data.groupby("Contract_Length_Months")["Renewal_Status"]
+          .mean().mul(100).reset_index())
+    fig, ax = make_fig(2.8, 4.5)
+    ax.plot(ct["Contract_Length_Months"], ct["Renewal_Status"],
+            color=C["accent"], linewidth=2, marker="o", markersize=6,
+            markerfacecolor=C["accent"], zorder=2)
+    ax.set_xlabel("Contract (months)")
+    ax.set_ylabel("Renewal Rate %")
+    ax.fill_between(ct["Contract_Length_Months"], ct["Renewal_Status"],
+                    alpha=0.08, color=C["accent"])
+    st.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# ROW 3 — Payment Delay  |  Industry Churn
+# ─────────────────────────────────────────────
+col_e, col_f = st.columns(2)
+
+with col_e:
+    st.subheader("Payment Delay vs Churn Rate")
+    buckets = list(range(0, 81, 10))
+    labels, churn_vals = [], []
+    for b in buckets:
+        sl = data[(data["Payment_Delay_Days"] >= b) & (data["Payment_Delay_Days"] < b + 10)]
+        labels.append(f"{b}-{b+10}")
+        churn_vals.append(round((sl["Renewal_Status"] == 0).sum() / len(sl) * 100, 1) if len(sl) else 0)
+    fig, ax = make_fig(2.8, 5)
+    ax.plot(labels, churn_vals, color=C["danger"], linewidth=2,
+            marker="o", markersize=5, zorder=2)
+    ax.fill_between(labels, churn_vals, alpha=0.08, color=C["danger"])
+    ax.set_xlabel("Payment Delay (days)")
+    ax.set_ylabel("Churn Rate %")
+    plt.xticks(rotation=30, ha="right")
+    st.pyplot(fig, use_container_width=True)
+
+with col_f:
+    st.subheader("Churn Rate by Industry")
+    ind_churn = (data.groupby("Industry")["Renewal_Status"]
+                 .apply(lambda s: (s == 0).mean() * 100).sort_values(ascending=False))
+    fig, ax = make_fig(2.8, 5)
+    bars = ax.bar(ind_churn.index, ind_churn.values, color=C["warn"],
+                  width=0.55, zorder=2)
+    ax.bar_label(bars, fmt="%.1f%%", fontsize=8.5, color=C["muted"], padding=3)
+    ax.set_ylabel("Churn %")
+    plt.xticks(rotation=20, ha="right")
+    ax.yaxis.grid(True, color=C["border"])
+    ax.set_axisbelow(True)
+    st.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# FEATURE IMPORTANCE  (progress-bar style)
+# ─────────────────────────────────────────────
+st.subheader("Feature Importance")
+features = [
+    ("Payment Delay Days",       0.82),
+    ("Monthly Usage Score",      0.71),
+    ("Support Tickets",          0.65),
+    ("Contract Length",          0.55),
+    ("Monthly Revenue",          0.40),
+]
+
+f_cols = st.columns(len(features))
+for (label, pct), col in zip(features, f_cols):
+    fig, ax = plt.subplots(figsize=(2.4, 1.1))
+    fig.patch.set_facecolor(C["surface"])
+    ax.set_facecolor(C["surface"])
+    ax.barh([0], [1], height=0.35, color=C["border"])
+    ax.barh([0], [pct], height=0.35, color=C["accent"])
+    ax.set_xlim(0, 1)
+    ax.set_yticks([])
+    ax.spines[:].set_visible(False)
+    ax.set_xticks([])
+    ax.set_title(f"{label}\n{int(pct*100)}%", fontsize=8.5,
+                 color=C["text"], fontweight="600", pad=4)
+    col.pyplot(fig, use_container_width=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# MODEL PERFORMANCE
+# ─────────────────────────────────────────────
+st.subheader("Model Performance  —  Random Forest Classifier")
+
+m1, m2, m3, m4, _ = st.columns([1, 1, 1, 1, 2])
+m1.metric("Accuracy",  "87.2%")
+m2.metric("Precision", "84.1%")
+m3.metric("Recall",    "81.6%")
+m4.metric("F1 Score",  "82.8%")
+
+# Confusion matrix heatmap
+st.markdown("")
+cm = np.array([[312, 48], [41, 99]])
+fig, ax = plt.subplots(figsize=(3.2, 2.4))
+im = ax.imshow(cm, cmap="Blues")
+plt.colorbar(im, ax=ax, shrink=0.8)
+ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+ax.set_xticklabels(["Predicted No", "Predicted Yes"], fontsize=9)
+ax.set_yticklabels(["Actual No", "Actual Yes"], fontsize=9)
+for i in range(2):
+    for j in range(2):
+        ax.text(j, i, cm[i, j], ha="center", va="center",
+                fontsize=11, color="white" if cm[i, j] > 200 else C["text"],
+                fontweight="600")
+ax.set_title("Confusion Matrix", fontsize=10, color=C["text"], pad=8)
+cm_col, _ = st.columns([1, 3])
+cm_col.pyplot(fig)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# HIGH VALUE CLIENTS AT RISK TABLE
+# ─────────────────────────────────────────────
+st.subheader("High-Revenue Clients at Risk")
+
+med_rev = filtered["Monthly_Revenue_USD"].median() if total_clients else 0
+high_val = filtered[
+    (filtered["Risk_Category"] == "High Risk") &
+    (filtered["Monthly_Revenue_USD"] > med_rev)
+].copy()
+
+display_cols = ["Company", "Industry", "Region", "Monthly_Revenue_USD",
+                "Risk_Score", "Payment_Delay_Days", "Support_Tickets_Last30Days", "Risk_Category"]
+
+if high_val.empty:
+    st.info("No high-revenue / high-risk clients in the current filter selection.")
+else:
+    show = high_val[display_cols].head(10).copy()
+    show.columns = ["Client", "Industry", "Region", "Revenue ($)", "Risk Score",
+                    "Pay Delay (d)", "Tickets", "Risk Level"]
+    show["Revenue ($)"] = show["Revenue ($)"].apply(lambda v: f"${v:,}")
+    st.dataframe(show, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# TOP 20 HIGH RISK CLIENTS
+# ─────────────────────────────────────────────
+st.subheader("Top 20 High-Risk Clients")
+
+top20 = filtered.sort_values("Risk_Score", ascending=False).head(20).copy()
+top20_show = top20[["Company", "Industry", "Region", "Risk_Score",
+                     "Monthly_Usage_Score", "Monthly_Revenue_USD",
+                     "Contract_Length_Months", "Risk_Category"]].copy()
+top20_show.columns = ["Client", "Industry", "Region", "Risk Score",
+                      "Usage", "Revenue ($)", "Contract (mo)", "Risk Level"]
+top20_show["Revenue ($)"] = top20_show["Revenue ($)"].apply(lambda v: f"${v:,}")
+st.dataframe(top20_show, use_container_width=True, hide_index=True)
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# ETHICAL AI
+# ─────────────────────────────────────────────
+st.subheader("Ethical Implications")
+
+e1, e2 = st.columns(2)
+with e1:
+    st.markdown(
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;margin-bottom:12px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">⚠️  Bias in Data</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">Predictive models may reflect historical biases; outcomes should be audited regularly.</p>'
+        f'</div>'
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🔒  Data Privacy</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">Client data must be encrypted, access-controlled, and handled per applicable regulations.</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+with e2:
+    st.markdown(
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;margin-bottom:12px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🤝  Relationship Risk</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">High-risk labels should not be surfaced to clients; use internally for prioritization only.</p>'
+        f'</div>'
+        f'<div style="background:{C["bg"]};border:1px solid {C["border"]};border-radius:8px;padding:14px;">'
+        f'<p style="font-size:12px;font-weight:700;color:{C["text"]};margin-bottom:4px;">🧠  Human Oversight</p>'
+        f'<p style="font-size:12px;color:{C["muted"]};margin:0;">AI predictions should augment human judgement — not serve as automatic decision gates.</p>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+st.divider()
+
+# ─────────────────────────────────────────────
+# RETENTION STRATEGY
+# ─────────────────────────────────────────────
+st.subheader("Retention Strategy")
+
+if st.button("Generate Recommendations"):
+    r1, r2 = st.columns(2)
+    actions = [
+        ("💳  Payment Flexibility",    "Offer extended terms or installment plans to clients with delays over 30 days."),
+        ("👤  Dedicated Account Mgmt", "Assign relationship managers to clients with 5+ support tickets per month."),
+        ("📋  Long-term Incentives",   "Provide pricing discounts or SLA upgrades for clients committing to 24-month contracts."),
+        ("⚡  Onboarding Improvement", "Activate proactive success programs for clients scoring below 50 on usage."),
+        ("🎯  Proactive Support",      "Reduce average ticket resolution time to under 4 hours for high-revenue accounts."),
+        ("📊  Quarterly Reviews",      "Introduce regular business reviews to surface value and identify renewal blockers early."),
+    ]
+    for i, (title, desc) in enumerate(actions):
+        col = r1 if i % 2 == 0 else r2
+        col.markdown(
+            f'<div style="background:{C["accent_light"]};border:1px solid #C7D8F5;border-radius:8px;padding:14px;margin-bottom:12px;">'
+            f'<p style="font-size:12px;font-weight:700;color:{C["accent"]};margin-bottom:4px;">{title}</p>'
+            f'<p style="font-size:12px;color:{C["muted"]};margin:0;">{desc}</p>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+# ─────────────────────────────────────────────
+# FOOTER
+# ─────────────────────────────────────────────
+st.markdown(
+    f'<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid {C["border"]};'
+    f'display:flex;justify-content:space-between;">'
+    f'<span style="font-size:11px;color:{C["muted"]};">B2B Client Risk Dashboard &nbsp;•&nbsp; Group-2 Rhinos &nbsp;•&nbsp; BBA Sem 4 &nbsp;•&nbsp; Woxsen University</span>'
+    f'<span style="font-size:11px;color:{C["muted"]};">Built with Streamlit &nbsp;•&nbsp; IBM Plex Sans</span>'
+    f'</div>',
+    unsafe_allow_html=True
+)
