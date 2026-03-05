@@ -20,11 +20,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ===== HEADER WITH LOGO =====
-col1, col2 = st.columns([1,6])
+# ===== HEADER WITH BIGGER LOGO =====
+col1, col2 = st.columns([1.2,6])
 
 with col1:
-    st.image("logo.png", width=75)
+    st.image("logo.png", width=110)  # 👈 increased size
 
 with col2:
     st.title("B2B Client Risk & Churn Prediction Dashboard")
@@ -181,19 +181,20 @@ pred = model.predict(X_test)
 
 st.write("Accuracy:", round(accuracy_score(y_test, pred),3))
 
-# ===== CONFUSION MATRIX =====
+# ===== CONFUSION MATRIX (FIXED) =====
 fig, ax = plt.subplots(figsize=(3.5,3))
 cm = confusion_matrix(y_test, pred)
 cax = ax.imshow(cm, cmap="Blues")
 
-for (i, j), val in enumerate(cm):
-    ax.text(j, i, val, ha='center', va='center')
+for i in range(len(cm)):
+    for j in range(len(cm[0])):
+        ax.text(j, i, cm[i, j], ha='center', va='center')
 
 ax.set_xlabel("Predicted")
 ax.set_ylabel("Actual")
 ax.set_title("Model Performance")
-fig.colorbar(cax)
 
+fig.colorbar(cax)
 st.pyplot(fig)
 
 # ===== FEATURE IMPORTANCE =====
