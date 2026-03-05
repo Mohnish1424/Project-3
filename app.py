@@ -7,7 +7,30 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 
 st.set_page_config(page_title="Client Risk Dashboard", layout="wide")
 
-st.title("B2B Client Risk & Churn Prediction Dashboard")
+# ===== HEADER WITH LOGO & GROUP INFO =====
+col_logo, col_title = st.columns([1,6])
+
+with col_logo:
+    st.image("logo.png", width=90)
+
+with col_title:
+    st.title("B2B Client Risk & Churn Prediction Dashboard")
+    st.caption("Group-2 • Rhinos • BBA Semester 4 • Section A • Woxsen University")
+
+# ===== TEAM MEMBERS =====
+if st.button("👥 View Team Members"):
+    st.info("""
+**Group-2 – Rhinos**
+
+Mohnish Singh Patwal  
+Shreyas Kandi  
+Akash Krishna  
+Nihal Talampally
+
+BBA Semester 4  
+Section A  
+Woxsen University
+""")
 
 # ===== Fancy Gradient Header =====
 st.markdown("""
@@ -212,3 +235,6 @@ st.write("""
 • Client data must be protected and handled securely.  
 • AI predictions should support human decisions, not replace them.
 """)
+# ===== FOOTER =====
+st.markdown("---")
+st.caption("Developed by Group-2 • Rhinos • BBA Semester 4 • Section A • Woxsen University")
