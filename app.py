@@ -174,8 +174,8 @@ html, body, [class*="css"], .stApp {
     border-radius: 11px; padding: 0.95rem 1.2rem 1.05rem; margin-bottom: 0.8rem;
 }
 .gtop { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:0.4rem; }
-.glbl { font-family:'Manrope',sans-serif; font-size:0.83rem; font-weight:800; color:var(--t1); }
-.gpct { font-family:'Manrope',sans-serif; font-size:1.4rem; font-weight:800; letter-spacing:-0.03em; }
+.glbl { font-family:'Manrope',sans-serif; font-size:0.88rem; font-weight:800; color:var(--t1); }
+.gpct { font-family:'Manrope',sans-serif; font-size:2rem; font-weight:800; letter-spacing:-0.03em; color:#FFFFFF !important; text-shadow: 0 0 18px rgba(6,182,212,0.6); }
 .gtrk { background:var(--s2); border-radius:99px; height:7px; overflow:hidden; margin-bottom:0.48rem; }
 .gfil { height:100%; border-radius:99px; }
 /* low/mid/high all use blue-cyan; intensity varies */
@@ -464,7 +464,7 @@ st.markdown(f"""
 <div class="gwrap">
   <div class="gtop">
     <span class="glbl">Overall Churn Risk Gauge</span>
-    <span class="gpct {g_cls}">{churn}%</span>
+    <span class="gpct">{churn}%</span>
   </div>
   <div class="gtrk"><div class="gfil {g_cls}" style="width:{min(churn,100)}%;"></div></div>
   <span class="pill {p_cls}">{p_txt}</span>
@@ -638,17 +638,27 @@ with c5:
     """, unsafe_allow_html=True)
 
     fig, ax = sfig(3.4, 2.8)
-    ax.imshow(cm, cmap='Blues', aspect='auto')
-    ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
-    ax.set_xticklabels(['Pred: Churn', 'Pred: Renew'], fontsize=8, color='#7A9BC8')
-    ax.set_yticklabels(['Act: Churn',  'Act: Renew'],  fontsize=8, color='#7A9BC8')
+    # Use solid dark-blue fills so white text is always readable
+    cell_colors = [
+        [BLUE2, '#0D1628'],   # row 0: dark blue, near-black
+        ['#0D1628', BLUE],    # row 1: near-black, medium blue
+    ]
     for i in range(2):
         for j in range(2):
+            ax.add_patch(plt.Rectangle((j-0.5, i-0.5), 1, 1,
+                                       color=cell_colors[i][j], zorder=1))
             ax.text(j, i, f'{cm[i,j]:,}', ha='center', va='center',
-                    fontsize=12, fontweight='700',
-                    color='white' if cm[i,j] > cm.max()/2 else '#DDE8F8')
-    ax.set_title('Confusion Matrix', fontsize=8.5, color='#7A9BC8', pad=6)
-    fig.tight_layout(pad=0.3)
+                    fontsize=16, fontweight='800', color='#FFFFFF', zorder=2)
+    ax.set_xlim(-0.5, 1.5); ax.set_ylim(-0.5, 1.5)
+    ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
+    ax.set_xticklabels(['Pred: Churn', 'Pred: Renew'], fontsize=8.5,
+                        color='#DDE8F8', fontweight='500')
+    ax.set_yticklabels(['Act: Churn',  'Act: Renew'],  fontsize=8.5,
+                        color='#DDE8F8', fontweight='500')
+    ax.set_title('Confusion Matrix', fontsize=9, color='#DDE8F8',
+                 fontweight='700', pad=8)
+    ax.tick_params(length=0)
+    fig.tight_layout(pad=0.5)
     st.pyplot(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
