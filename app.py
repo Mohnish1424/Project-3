@@ -27,18 +27,91 @@ RISK_COLORS = {"High Risk": DANGER, "Medium Risk": WARN, "Low Risk": SUCCESS}
 st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
-html, body, [class*="css"] {{ font-family: 'IBM Plex Sans', sans-serif; }}
-.stApp {{ background-color: {BG}; }}
-.block-container {{ background-color: {SURFACE}; padding: 2rem 2.5rem 3rem 2.5rem; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); max-width: 1280px; }}
-[data-testid="stSidebar"] {{ background-color: {SURFACE}; border-right: 1px solid {BORDER}; }}
-[data-testid="stSidebar"] .block-container {{ box-shadow: none; padding: 1.5rem 1.25rem; }}
-h1 {{ color: {TEXT}; font-weight: 700; font-size: 1.4rem; letter-spacing: -0.01em; }}
-h2 {{ color: {TEXT}; font-weight: 600; font-size: 1.05rem; border-left: 3px solid {ACCENT}; padding-left: 10px; margin-top: 0.2rem; }}
-hr {{ border-color: {BORDER}; margin: 1.6rem 0; }}
-[data-testid="metric-container"] {{ background-color: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; padding: 14px 18px; }}
-.stButton > button {{ background-color: {ACCENT}; color: white; border: none; border-radius: 6px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 600; font-size: 13px; padding: 8px 20px; }}
-.stButton > button:hover {{ background-color: #0D449A; color: white; }}
-[data-testid="stSidebar"] label {{ font-size: 11px; font-weight: 600; color: {MUTED}; text-transform: uppercase; letter-spacing: 0.06em; }}
+
+html, body, button, input, select, textarea,
+.stApp, .stMarkdown, p, li, label, span {{
+    font-family: 'IBM Plex Sans', sans-serif !important;
+}}
+
+.stApp {{ background-color: {BG} !important; }}
+
+.main .block-container {{
+    background-color: {SURFACE};
+    padding: 2rem 2.5rem 3rem 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    max-width: 1280px;
+}}
+
+[data-testid="stSidebar"] > div:first-child {{
+    background-color: {SURFACE} !important;
+    border-right: 1px solid {BORDER};
+}}
+
+.stApp h1, [data-testid="stHeadingWithActionElements"] h1 {{
+    color: {TEXT} !important;
+    font-weight: 700 !important;
+    font-size: 1.4rem !important;
+    letter-spacing: -0.01em !important;
+}}
+.stApp h2 {{
+    color: {TEXT} !important;
+    font-weight: 600 !important;
+    font-size: 1.05rem !important;
+    border-left: 3px solid {ACCENT};
+    padding-left: 10px;
+}}
+.stApp h3, .stApp h4, .stApp h5 {{
+    color: {TEXT} !important;
+    font-weight: 600 !important;
+}}
+.stApp p, .stMarkdown p {{
+    color: {TEXT} !important;
+    font-size: 13px;
+}}
+
+hr {{ border-color: {BORDER} !important; margin: 1.4rem 0; }}
+
+[data-testid="metric-container"] {{
+    background-color: {SURFACE} !important;
+    border: 1px solid {BORDER} !important;
+    border-radius: 10px !important;
+    padding: 14px 18px !important;
+}}
+[data-testid="metric-container"] [data-testid="stMetricLabel"] p {{
+    color: {MUTED} !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {{
+    color: {TEXT} !important;
+    font-size: 1.8rem !important;
+    font-weight: 700 !important;
+}}
+
+.stButton > button {{
+    background-color: {ACCENT} !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 20px !important;
+}}
+.stButton > button:hover {{
+    background-color: #0D449A !important;
+    color: white !important;
+}}
+
+[data-testid="stSidebar"] label {{
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: {MUTED} !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
